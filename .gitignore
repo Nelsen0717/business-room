@@ -1,0 +1,18 @@
+# 金鑰與憑證——永遠不進 repo
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+token*.json
+
+# 暫存
+logs/
+__pycache__/
+.DS_Store
+
+# 學員自己的經營資料不該放在這裡
+我的經營室/
+經營資料.json

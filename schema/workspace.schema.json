@@ -1,0 +1,1065 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:youfeng:studio:workspace:1",
+  "title": "經營室資料 v1",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "youfeng.studio/1"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "setup": {
+      "type": "object",
+      "properties": {
+        "step": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4
+        },
+        "complete": {
+          "type": "boolean"
+        },
+        "answers": {
+          "type": "object"
+        }
+      },
+      "required": [
+        "step",
+        "complete",
+        "answers"
+      ]
+    },
+    "business": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "service",
+            "local",
+            "commerce"
+          ]
+        },
+        "goal": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "focus": {
+          "enum": [
+            "找客",
+            "迎客",
+            "成交",
+            "口碑",
+            "養客",
+            "回客"
+          ]
+        },
+        "demo": {
+          "type": "boolean"
+        }
+      },
+      "required": []
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/source"
+      }
+    },
+    "people": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/person"
+      }
+    },
+    "transactions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/transaction"
+      }
+    },
+    "actions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/action"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/note"
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "at": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "at",
+          "text"
+        ]
+      }
+    },
+    "requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "read"
+            ]
+          },
+          "view": {
+            "type": "object"
+          },
+          "at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "status",
+          "view",
+          "at"
+        ]
+      }
+    },
+    "preferences": {
+      "type": "object",
+      "properties": {
+        "home": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "focus",
+              "journey",
+              "revenue",
+              "people",
+              "map",
+              "pulse",
+              "flows",
+              "work"
+            ]
+          }
+        },
+        "density": {
+          "enum": [
+            "comfortable",
+            "compact"
+          ]
+        },
+        "user_customized": {
+          "type": "boolean"
+        },
+        "interview_layout": {
+          "type": "object",
+          "properties": {
+            "source": {
+              "type": "string"
+            },
+            "reason": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "source",
+            "reason"
+          ]
+        },
+        "period": {
+          "enum": [
+            7,
+            14,
+            28
+          ]
+        }
+      },
+      "required": [
+        "home",
+        "density"
+      ]
+    },
+    "connections": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "enum": [
+              "stored",
+              "verified"
+            ]
+          },
+          "at": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "at",
+          "message"
+        ]
+      }
+    },
+    "view": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "string"
+        },
+        "selected": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "page",
+        "selected"
+      ]
+    },
+    "companion": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "enum": [
+            "native",
+            "claude",
+            "codex"
+          ]
+        },
+        "turns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "queued",
+                  "running",
+                  "ready",
+                  "applied",
+                  "cancelled",
+                  "error",
+                  "dismissed"
+                ]
+              },
+              "context": {
+                "type": "object"
+              },
+              "text": {
+                "type": "string"
+              },
+              "reply": {
+                "type": [
+                  "object",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "context",
+              "text",
+              "reply"
+            ]
+          }
+        },
+        "prepare_imports": {
+          "type": "boolean"
+        },
+        "events_seen": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "uniqueItems": true
+        },
+        "prepare_results": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mode",
+        "turns"
+      ]
+    },
+    "interview": {
+      "type": "object",
+      "properties": {
+        "section": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "answers": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "basis": {
+                "enum": [
+                  "record",
+                  "memory",
+                  "unknown"
+                ]
+              },
+              "source": {
+                "type": "string"
+              },
+              "confirmed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "text",
+              "basis",
+              "source",
+              "confirmed"
+            ]
+          }
+        },
+        "reviewed_at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "section",
+        "answers"
+      ]
+    },
+    "reporting": {
+      "type": "object",
+      "properties": {
+        "as_of": {
+          "type": "string",
+          "format": "date"
+        },
+        "stage": {
+          "enum": [
+            "day1",
+            "week3",
+            "month3"
+          ]
+        },
+        "stage_label": {
+          "type": "string"
+        },
+        "headline": {
+          "type": "string"
+        },
+        "coverage": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "format": "date"
+              },
+              "end": {
+                "type": "string",
+                "format": "date"
+              },
+              "source": {
+                "type": "string"
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "start",
+              "end",
+              "source",
+              "complete"
+            ]
+          }
+        }
+      },
+      "required": [
+        "as_of",
+        "coverage"
+      ]
+    },
+    "flows": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "node": {
+            "enum": [
+              "找客",
+              "迎客",
+              "成交",
+              "口碑",
+              "養客",
+              "回客"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "goal": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "status": {
+                  "enum": [
+                    "pending",
+                    "review",
+                    "waiting",
+                    "done"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                },
+                "result": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "metric": {
+                  "type": "object",
+                  "properties": {
+                    "value": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0
+                    },
+                    "unit": {
+                      "type": "string"
+                    },
+                    "cohort": {
+                      "type": "string"
+                    },
+                    "start": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "end": {
+                      "type": "string",
+                      "format": "date"
+                    },
+                    "basis": {
+                      "enum": [
+                        "record",
+                        "memory",
+                        "unknown"
+                      ]
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "row": {
+                      "type": "integer",
+                      "minimum": 2
+                    },
+                    "field": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "unit",
+                    "cohort",
+                    "start",
+                    "end",
+                    "basis",
+                    "source"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "detail",
+                "owner",
+                "status",
+                "source",
+                "result"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "node",
+          "source",
+          "goal",
+          "steps"
+        ]
+      }
+    },
+    "demo_snapshots": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      }
+    },
+    "onboarding": {
+      "type": "object",
+      "required": [
+        "id",
+        "digest",
+        "status",
+        "source",
+        "payload",
+        "question",
+        "answers",
+        "at"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "status": {
+          "enum": [
+            "review",
+            "active"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "payload": {
+          "type": "object"
+        },
+        "question": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "answers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "question",
+              "text",
+              "basis",
+              "source",
+              "at"
+            ],
+            "properties": {
+              "question": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "basis": {
+                "enum": [
+                  "record",
+                  "memory",
+                  "unknown"
+                ]
+              },
+              "source": {
+                "type": "string"
+              },
+              "at": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "at": {
+          "type": "string"
+        },
+        "action": {
+          "type": "string"
+        },
+        "confirmation_source": {
+          "type": "string"
+        },
+        "confirmed_via": {
+          "enum": [
+            "conversation",
+            "screen"
+          ]
+        },
+        "confirmed_at": {
+          "type": "string"
+        },
+        "observation": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "observations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "purpose",
+          "node",
+          "fields",
+          "source",
+          "fingerprint",
+          "rows",
+          "status",
+          "at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "node": {
+            "enum": [
+              "找客",
+              "迎客",
+              "成交",
+              "口碑",
+              "養客",
+              "回客"
+            ]
+          },
+          "fields": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "label",
+                "type",
+                "options",
+                "required"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "type": {
+                  "enum": [
+                    "text",
+                    "date",
+                    "number",
+                    "select"
+                  ]
+                },
+                "options": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "source": {
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused"
+            ]
+          },
+          "at": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "request_id",
+                "values",
+                "basis",
+                "source",
+                "at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "request_id": {
+                  "type": "string"
+                },
+                "values": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "type": [
+                      "string",
+                      "number",
+                      "null"
+                    ]
+                  }
+                },
+                "basis": {
+                  "enum": [
+                    "record",
+                    "memory",
+                    "unknown"
+                  ]
+                },
+                "source": {
+                  "type": "string"
+                },
+                "at": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "revision",
+    "setup",
+    "business",
+    "sources",
+    "people",
+    "transactions",
+    "actions",
+    "notes",
+    "events",
+    "requests",
+    "preferences",
+    "connections",
+    "view"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "source": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "csv",
+            "interview",
+            "note"
+          ]
+        },
+        "content": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        },
+        "demo": {
+          "type": "boolean"
+        },
+        "digest": {
+          "type": "string"
+        },
+        "previous_source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "content",
+        "at",
+        "demo"
+      ]
+    },
+    "person": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "node": {
+          "enum": [
+            "找客",
+            "迎客",
+            "成交",
+            "口碑",
+            "養客",
+            "回客"
+          ]
+        },
+        "status": {
+          "type": "string"
+        },
+        "note": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "lat": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "lng": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "address": {
+          "type": "string"
+        },
+        "phone": {
+          "type": "string"
+        },
+        "website": {
+          "type": "string"
+        },
+        "demo": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "node",
+        "status",
+        "source",
+        "demo"
+      ]
+    },
+    "transaction": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "source": {
+          "type": "string"
+        },
+        "row": {
+          "type": "integer",
+          "minimum": 2
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "amount",
+        "source",
+        "row"
+      ]
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "node": {
+          "enum": [
+            "找客",
+            "迎客",
+            "成交",
+            "口碑",
+            "養客",
+            "回客"
+          ]
+        },
+        "reason": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "suggested",
+            "prepared",
+            "approved",
+            "done",
+            "dismissed"
+          ]
+        },
+        "drafts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "result": {
+          "type": "string"
+        },
+        "created": {
+          "type": "string"
+        },
+        "updated": {
+          "type": "string"
+        },
+        "selected_draft": {
+          "type": "string"
+        },
+        "person": {
+          "type": "string"
+        },
+        "demo": {
+          "type": "boolean"
+        },
+        "result_source": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "node",
+        "reason",
+        "source",
+        "status",
+        "drafts",
+        "result",
+        "created",
+        "demo"
+      ]
+    },
+    "note": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "at": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "content",
+        "source",
+        "at"
+      ]
+    }
+  }
+}

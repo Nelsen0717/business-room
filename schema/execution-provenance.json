@@ -1,0 +1,7 @@
+{
+  "schema": "source-execution.v1",
+  "upstream": "second_brain/execution_contract.py",
+  "received": "2026-09-21",
+  "sha256": "34b702fed5c01012c97c9ef22bdb864e47a6eaa2707ab48f8484449ff20ae4eb",
+  "scope": "僅純函式；沒有私人資料、提示詞或憑證"
+}
