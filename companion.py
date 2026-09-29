@@ -165,11 +165,19 @@ def prompt_for(s,t):
     if len(raw)>65000:raise ValueError('這次材料較多，請先用原對話整理，再回工作台討論。')
     return raw
 
-def claude_binary():
+def _version_key(path):
+    return tuple(int(x) if x.isdigit() else 0 for x in path.parent.parent.parent.parent.name.split('.'))
+
+def claude_binary(home=None):
     # GUI 啟動的 PATH 可能先找到多年以前的 Homebrew 版；官方原生安裝優先。
-    candidate=pathlib.Path.home()/'.local/bin/claude'
+    home=pathlib.Path(home) if home else pathlib.Path.home()
+    candidate=home/'.local/bin/claude'
     if candidate.is_file() and os.access(candidate,os.X_OK):return str(candidate)
-    return shutil.which('claude')
+    found=shutil.which('claude')
+    if found:return found
+    # 只裝桌面版的人：桌面版自帶一份 Claude Code，取最新那一版；沒登入由 run_claude 的登入檢查說明。
+    bundled=[p for p in (home/'Library/Application Support/Claude/claude-code').glob('*/claude.app/Contents/MacOS/claude') if p.is_file() and os.access(p,os.X_OK)]
+    return str(max(bundled,key=_version_key)) if bundled else None
 
 def decode_response(stdout):
     try:

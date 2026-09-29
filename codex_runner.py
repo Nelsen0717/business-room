@@ -14,8 +14,15 @@ DISABLED = ('shell_tool', 'unified_exec', 'shell_snapshot', 'code_mode_host', 'c
             'sleep_tool', 'tool_suggest', 'request_permissions_tool')
 
 
-def codex_binary():
-    for path in ('/Applications/Codex.app/Contents/Resources/codex', '/Applications/ChatGPT.app/Contents/Resources/codex'):
+# 學員多半只裝桌面版。ChatGPT 桌面版 2026-09 起把內建 Codex 搬到 codex-cli/bin/；
+# 桌面版會自己更新，比另外裝、可能過期的命令列版更跟得上新模型，所以排前面。
+CODEX_PATHS = ('/Applications/ChatGPT.app/Contents/Resources/codex-cli/bin/codex',
+               '/Applications/Codex.app/Contents/Resources/codex',
+               '/Applications/ChatGPT.app/Contents/Resources/codex')
+
+
+def codex_binary(paths=CODEX_PATHS):
+    for path in paths:
         if pathlib.Path(path).is_file() and os.access(path, os.X_OK):
             return path
     return shutil.which('codex')

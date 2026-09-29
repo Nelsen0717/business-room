@@ -4,10 +4,13 @@ import copy, csv, io, uuid, datetime, math, hashlib, json
 HOME_WIDGETS={"focus","journey","revenue","people","map","pulse","flows","work"}
 NODES = ["找客", "迎客", "成交", "口碑", "養客", "回客"]
 KINDS = {"service":"預約與服務", "local":"街區與合作", "commerce":"商品與電商"}
+SCHEMA="business-room.studio/1"
+LEGACY_SCHEMAS={"youfeng.studio/1"}  # 2026-09 以前的安裝，載入時自動改成 SCHEMA
+
 def now(): return datetime.datetime.now(datetime.timezone.utc).isoformat()
 def uid(): return uuid.uuid4().hex[:12]
 def empty():
-    return dict(schema="youfeng.studio/1", revision=0, setup={"step":0,"complete":False,"answers":{}}, business={}, sources=[], people=[], transactions=[], actions=[], notes=[], events=[], requests=[], preferences={"home":["focus","journey","revenue","people"],"density":"comfortable"}, connections={}, view={"page":"overview","selected":None})
+    return dict(schema=SCHEMA, revision=0, setup={"step":0,"complete":False,"answers":{}}, business={}, sources=[], people=[], transactions=[], actions=[], notes=[], events=[], requests=[], preferences={"home":["focus","journey","revenue","people"],"density":"comfortable"}, connections={}, view={"page":"overview","selected":None})
 
 def sample(kind="service", priority=None, stage=None):
     from scenarios import build

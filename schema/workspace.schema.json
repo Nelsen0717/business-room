@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "urn:youfeng:studio:workspace:1",
+  "$id": "urn:business-room:studio:workspace:1",
   "title": "經營室資料 v1",
   "type": "object",
   "properties": {
     "schema": {
-      "const": "youfeng.studio/1"
+      "const": "business-room.studio/1"
     },
     "revision": {
       "type": "integer",

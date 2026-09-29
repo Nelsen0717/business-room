@@ -19,7 +19,7 @@ def open_workspace(workspace):
         rt=runtime(workspace)
         try:call(rt,"/api/state");return rt
         except (OSError,ValueError):pass
-    server=workspace/".youfeng/server.py"
+    server=workspace/".business-room/server.py"
     if not server.exists():
         from install import install
         install(workspace)
@@ -36,13 +36,13 @@ def open_workspace(workspace):
     raise ValueError("尚未開啟，請讓原助手檢查這個資料夾的 .工作台日誌。原資料仍保留。")
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument("--workspace",required=True);p.add_argument("command",choices=["context","wait","publish","open","handoff","resume","configure"]);p.add_argument("--file");p.add_argument("--after",type=int,default=-1);p.add_argument("--timeout",type=int,default=45);a=p.parse_args()
+    p=argparse.ArgumentParser(); p.add_argument("--workspace",required=True);p.add_argument("command",choices=["context","wait","publish","open","handoff","resume","configure","map"]);p.add_argument("--file");p.add_argument("--after",type=int,default=-1);p.add_argument("--timeout",type=int,default=45);a=p.parse_args()
     workspace=pathlib.Path(a.workspace).expanduser().resolve()
     payload=json.loads(pathlib.Path(a.file).read_text()) if a.file else None
     if a.command in {'handoff','open'} and payload is not None:
         from onboarding import validate
         validate(payload)
-    try:rt=open_workspace(workspace) if a.command=='open' else runtime(workspace)
+    try:rt=open_workspace(workspace) if a.command in {'open','map'} else runtime(workspace)
     except ValueError as e:p.error(str(e))
     if a.command=='configure':
         if not isinstance(payload,dict) or payload.get('confirmed') is not True or not isinstance(payload.get('quote'),str) or not payload['quote'].strip():
@@ -57,6 +57,13 @@ def main():
         print(json.dumps({'url':rt['base']+'/#token='+rt['token'],**result},ensure_ascii=False,indent=2));return
     if a.command=='resume':
         print(json.dumps(call(rt,'/api/agent/resume'),ensure_ascii=False,indent=2));return
+    if a.command=="map":
+        if not a.file:p.error("map 需要 --file（這次長出來的那幾塊）")
+        from contextmap import validate as validate_map
+        try:validate_map(payload)
+        except ValueError as e:p.error(str(e))
+        result=call(rt,"/api/agent/map",payload)
+        print(json.dumps({"ok":True,**{k:result[k] for k in ("revision","map_revision","sections")},"url":rt["base"]+"/#token="+rt["token"]},ensure_ascii=False));return
     if a.command=="publish":
         if not a.file:p.error("publish 需要 --file")
         result=call(rt,"/api/agent/publish",payload)

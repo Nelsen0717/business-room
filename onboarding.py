@@ -203,5 +203,6 @@ def resume(s):
         first_task=active[0] if active else None, recent_results=results[:3],
         next_question=o.get('question'), added_context=o.get('answers', []),
         observations=s.get('observations',[]),
+        map=dict(sections=sorted(k for k in (s.get('map') or {}) if k not in {'revision','updated','sources'}),revision=(s.get('map') or {}).get('revision',0)),
         pending_discussions=[x for x in s.get('companion', {}).get('turns', []) if x['status'] == 'queued'],
         instruction='先讀已有原話與結果，不重問。若有未完成的工作先接續；若已有結果，先問是否回看，再準備下一個有依據的做法。不要自行宣告背景運作或對外發送。')

@@ -1,0 +1,269 @@
+/* 脈絡地圖：經營室首頁的峰值。樣張與產品共用這一份。
+   層級：每一塊先一句重點（標題）→ 一張圖 → 點開才看細節。去 AI 味：hairline、零漸層、零有色邊條、圓角 ≤ 8px。 */
+.cm{--cm-bg:var(--bg,#F7F8F5);--cm-paper:var(--paper,#FFFFFF);--cm-ink:var(--ink,#202A26);--cm-ink2:var(--ink2,#526159);--cm-ink3:var(--ink3,#68766E);
+  --cm-accent:var(--accent,#315E4C);--cm-accent-ink:var(--accent-ink,#FFFFFF);--cm-tint:var(--tint,#E8F0EB);--cm-line:var(--line,#DDE3DD);--cm-line2:var(--line2,#C5CFC7);
+  --cm-leak:var(--leak,#9A5B13);--cm-leak-tint:var(--leak-tint,#F6EEE2);
+  --cm-mono:var(--mono,ui-monospace,"SF Mono",Menlo,Consolas,monospace);
+  color:var(--cm-ink);position:relative}
+.cm *{box-sizing:border-box}
+.cm button{font:inherit;color:inherit}
+.cm-num{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* 出處：用點，不用字 */
+.cm-dot{display:inline-block;width:7px;height:7px;border-radius:50%;flex:none;vertical-align:1px}
+.cm-dot.said{background:var(--cm-ink)}
+.cm-dot.data{background:var(--cm-accent)}
+.cm-dot.web{border:1.5px solid var(--cm-ink2);width:8px;height:8px}
+.cm-dot.est,.cm-dot.calc,.cm-dot.youest{background:var(--cm-leak)}
+.cm-legend{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--cm-ink3)}
+.cm-legend span{display:inline-flex;align-items:center;gap:6px}
+
+/* 頂端：店名、SCALE 閉環、出處圖例 */
+.cm-top{display:flex;justify-content:space-between;align-items:center;gap:12px 20px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--cm-line)}
+.cm-store{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cm-store b{font-size:15px;font-weight:600}
+.cm-store span{font-size:12.5px;color:var(--cm-ink3)}
+.cm-scale{display:flex;align-items:center;gap:10px}
+.cm-scale svg{width:44px;height:44px;flex:none}
+.cm-scale .t{display:flex;flex-direction:column;line-height:1.35}
+.cm-scale .t b{font-size:12.5px;font-weight:600}
+.cm-scale .t span{font-size:11px;color:var(--cm-ink3);font-family:var(--cm-mono)}
+.cm-scale .arc{fill:none;stroke:var(--cm-line2);stroke-width:5}
+.cm-scale .arc.done{stroke:var(--cm-accent);opacity:.45}
+.cm-scale .arc.now{stroke:var(--cm-accent)}
+.cm-scale text{font-family:var(--cm-mono);font-size:7px;fill:var(--cm-ink3)}
+.cm-scale .spin{transform-origin:22px 22px;animation:cm-spin 6s linear infinite}
+
+/* 區塊 */
+.cm-sec{padding-block:34px 30px;border-bottom:1px solid var(--cm-line)}
+.cm-sec:last-child{border-bottom:0}
+.cm-sec.is-wait{padding-block:16px}
+.cm-sec.is-wait .cm-h{margin-bottom:0;align-items:center}
+.cm-h h2.cm-wait{font-size:14px;font-weight:500;color:var(--cm-ink3)}
+.cm-h{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px}
+.cm-h .i{font-family:var(--cm-mono);font-size:11px;color:var(--cm-ink3);letter-spacing:.06em;padding-top:5px;white-space:nowrap}
+.cm-h .i em{font-style:normal;display:block;color:var(--cm-ink2);letter-spacing:.02em;font-family:inherit;margin-top:2px}
+.cm-h h2{margin:0;font-size:21px;line-height:1.45;font-weight:650;text-wrap:balance;flex:1}
+.cm-say{border:0;background:transparent;color:var(--cm-accent);font-size:12.5px;cursor:pointer;padding:6px 0;white-space:nowrap;text-decoration:underline;text-underline-offset:3px}
+.cm-say:focus-visible,.cm-tap:focus-visible{outline:2px solid var(--cm-accent);outline-offset:2px}
+.cm-wait{font-size:13.5px;color:var(--cm-ink3);display:flex;align-items:center;gap:10px}
+.cm-wait i{display:inline-flex;gap:4px}
+.cm-wait i b{width:5px;height:5px;border-radius:50%;background:var(--cm-ink3);animation:cm-blink 1.2s ease-in-out infinite}
+.cm-wait i b:nth-child(2){animation-delay:.2s}.cm-wait i b:nth-child(3){animation-delay:.4s}
+.cm-tap{cursor:pointer;border-radius:6px;transition:background .15s ease}
+.cm-tap:hover{background:var(--cm-tint)}
+
+/* 01 我理解的你＋最重要的一個數字 */
+.cm-hero{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:28px;align-items:end}
+.cm-hero .line{font-size:clamp(22px,3.1vw,30px);line-height:1.42;font-weight:700;letter-spacing:.005em;text-wrap:balance;margin:0}
+.cm-hero .line .soft{color:var(--cm-ink3);font-weight:500}
+.cm-facts{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.cm-fact{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border:1px solid var(--cm-line);border-radius:999px;background:var(--cm-paper);font-size:13.5px}
+.cm-fix{margin-top:14px;font-size:13px;color:var(--cm-ink2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.cm-fix q{color:var(--cm-ink)}
+.cm-key{padding:18px 20px;border:1px solid var(--cm-line);border-radius:8px;background:var(--cm-paper)}
+.cm-key .k{font-size:12px;color:var(--cm-ink2);display:flex;align-items:center;gap:8px}
+.cm-key .v{font-size:clamp(34px,5vw,48px);font-weight:700;line-height:1.1;margin-top:6px;color:var(--cm-leak)}
+.cm-key .v small{font-size:.42em;font-weight:500;color:var(--cm-ink2);margin-left:4px}
+.cm-key.win .v{color:var(--cm-accent)}
+.cm-key .u{height:2px;background:var(--cm-leak);margin-top:10px;transform-origin:left}
+.cm-key.win .u{background:var(--cm-accent)}
+.cm-key .s{font-size:12.5px;color:var(--cm-ink3);margin-top:8px}
+
+/* 02 客人怎麼走：六格＋流動的客人 */
+.cm-flow{position:relative;overflow-x:auto;margin-inline:-6px;padding-inline:6px}
+.cm-flow svg{display:block;width:100%;min-width:640px;height:auto}
+.cm-flow .rail{stroke:var(--cm-line2);stroke-width:2;fill:none}
+.cm-flow .node{cursor:pointer}
+.cm-flow .node circle.b{fill:var(--cm-paper);stroke:var(--cm-line2);stroke-width:1.5}
+.cm-flow .node.leak circle.b{fill:var(--cm-leak-tint);stroke:var(--cm-leak);stroke-width:2.5}
+.cm-flow .node.hole circle.b{fill:var(--cm-leak-tint);stroke:var(--cm-leak);stroke-width:2;stroke-dasharray:5 4}
+.cm-flow .node.rel circle.b{stroke:var(--cm-accent);stroke-width:2}
+.cm-flow .node.later text{opacity:.55}
+.cm-flow .node.later circle.b{stroke:var(--cm-line)}
+.cm-flow .node.later circle.b{stroke-dasharray:4 4}
+.cm-flow .node text.n{font-size:17px;font-weight:650;fill:var(--cm-ink);text-anchor:middle}
+.cm-flow .node.unknown text.n,.cm-flow .node.later text.n{fill:var(--cm-ink3)}
+.cm-flow .node text.s{font-size:13px;text-anchor:middle;fill:var(--cm-ink3)}
+.cm-flow .node.leak text.s{fill:var(--cm-leak);font-weight:700;font-size:15px}
+.cm-flow .node.hole text.s{fill:var(--cm-leak);font-weight:600}
+.cm-flow .node.rel text.s{fill:var(--cm-accent);font-weight:600}
+.cm-flow .node:focus{outline:none}
+.cm-flow .node:focus-visible circle.b{stroke:var(--cm-ink);stroke-width:2.5}
+.cm-flow .pulse{fill:none;stroke:var(--cm-leak);stroke-width:1.5;opacity:0;transform-box:fill-box;transform-origin:center;animation:cm-ring 2.4s ease-out infinite}
+.cm-flow .dot{fill:var(--cm-ink2)}
+.cm-flow .dot.fall{fill:var(--cm-leak)}
+.cm-flow .end{font-size:12px;fill:var(--cm-ink3);font-family:var(--cm-mono)}
+.cm-eq{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:18px}
+.cm-eq .f{display:flex;flex-direction:column;padding:8px 12px;border:1px solid var(--cm-line);border-radius:8px;background:var(--cm-paper);min-width:0}
+.cm-eq .f .l{font-size:11.5px;color:var(--cm-ink3)}
+.cm-eq .f .x{font-size:15px;font-weight:600}
+.cm-eq .op{color:var(--cm-ink3);font-family:var(--cm-mono);font-size:15px}
+.cm-eq .f.res{border-color:var(--cm-leak);background:var(--cm-leak-tint)}
+.cm-eq .f.res .x{color:var(--cm-leak)}
+.cm-funnel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:18px;align-items:end}
+.cm-funnel .c{display:flex;flex-direction:column;gap:6px}
+.cm-funnel .bar{background:var(--cm-accent);border-radius:4px 4px 0 0;transform-origin:bottom;width:min(72px,70%)}
+.cm-funnel .n{font-size:20px;font-weight:700}
+.cm-funnel .l{font-size:12px;color:var(--cm-ink2)}
+
+/* 03 成功公式：四格圖示＋畫出來的箭頭 */
+.cm-formula{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0;position:relative}
+.cm-term{position:relative;padding:4px 18px 4px 0;display:flex;flex-direction:column;gap:10px}
+.cm-term+.cm-term{padding-left:26px}
+.cm-term svg.ic{width:34px;height:34px;flex:none}
+.cm-term svg.ic *{fill:none;stroke:var(--cm-ink);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.cm-term.val svg.ic *{stroke:var(--cm-accent)}
+.cm-term .k{font-size:11.5px;color:var(--cm-ink3);letter-spacing:.06em;font-family:var(--cm-mono)}
+.cm-term .v{font-size:15px;line-height:1.55;font-weight:600}
+.cm-term.val .v{font-size:19px;color:var(--cm-accent)}
+.cm-term .arr{position:absolute;left:-6px;top:10px;width:22px;height:14px}
+.cm-term .arr path{fill:none;stroke:var(--cm-ink3);stroke-width:1.5;stroke-dasharray:3 3;animation:cm-march .9s linear infinite}
+.cm-quote{margin-top:18px;font-size:13px;color:var(--cm-ink2)}
+
+/* 04 時間：一週的條＋一天的空檔 */
+.cm-week{display:flex;height:44px;border-radius:8px;overflow:hidden;border:1px solid var(--cm-line)}
+.cm-week .sg{display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--cm-ink2);border-right:1px solid var(--cm-line);white-space:nowrap;overflow:hidden;background:var(--cm-paper);transform-origin:left;cursor:pointer}
+.cm-week .sg:last-child{border-right:0}
+.cm-week .sg.main{background:var(--cm-bg)}
+.cm-week .sg.hand{background:var(--cm-tint);color:var(--cm-accent);font-weight:600;animation:cm-breathe 2.6s ease-in-out infinite}
+.cm-time{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;margin-top:22px;align-items:start}
+.cm-big{display:flex;flex-direction:column;gap:4px}
+.cm-big .v{font-size:40px;font-weight:700;line-height:1.1}
+.cm-big .v.acc{color:var(--cm-accent)}
+.cm-big .l{font-size:13px;color:var(--cm-ink2)}
+.cm-day{position:relative}
+.cm-day .track{position:relative;height:26px;border-radius:6px;background:var(--cm-bg);border:1px solid var(--cm-line);overflow:hidden}
+.cm-day .blk{position:absolute;top:0;bottom:0;background:var(--cm-line2);opacity:.55}
+.cm-day .free{position:absolute;top:-1px;bottom:-1px;border:1.5px solid var(--cm-accent);background:var(--cm-tint);border-radius:6px;animation:cm-breathe 2.6s ease-in-out infinite}
+.cm-day .ticks{display:flex;justify-content:space-between;font-size:11px;color:var(--cm-ink3);margin-top:6px;font-family:var(--cm-mono)}
+.cm-day .cap{font-size:13px;margin-top:8px;display:flex;gap:8px;align-items:center}
+
+/* 05 三個機會：目標 → 手段 → 脈絡 */
+.cm-tree{position:relative}
+.cm-goal{max-width:560px;margin:0 auto;text-align:center;padding:16px 18px;border:1.5px solid var(--cm-ink);border-radius:8px;background:var(--cm-paper)}
+.cm-goal .k{font-size:11px;letter-spacing:.08em;color:var(--cm-ink3);font-family:var(--cm-mono)}
+.cm-goal .v{font-size:18px;font-weight:650;margin-top:4px}
+.cm-goal .b{font-size:12.5px;color:var(--cm-ink3);margin-top:6px}
+.cm-links{display:block;width:100%;height:46px}
+.cm-links path{fill:none;stroke:var(--cm-ink3);stroke-width:1.5;stroke-dasharray:4 5;animation:cm-march 1.3s linear infinite}
+.cm-branches{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.cm-br{display:flex;flex-direction:column;gap:10px;padding:16px;border:1px solid var(--cm-line);border-radius:8px;background:var(--cm-paper)}
+.cm-br .kind{display:flex;justify-content:space-between;font-size:12px}
+.cm-br .kind b{font-weight:650}
+.cm-br .kind span{color:var(--cm-ink3);font-family:var(--cm-mono)}
+.cm-br .t{font-size:14.5px;line-height:1.55}
+.cm-br .v{font-size:24px;font-weight:700}
+.cm-br .v.leak{color:var(--cm-leak)}
+.cm-br .v.acc{color:var(--cm-accent)}
+.cm-br .ctx{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--cm-line);margin-top:auto}
+.cm-br .ctx span{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--cm-ink2)}
+.cm-learned{margin-top:22px;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
+.cm-learned div{padding-top:10px;border-top:2px solid var(--cm-accent)}
+.cm-learned b{display:block;font-size:13.5px}
+.cm-learned span{font-size:12.5px;color:var(--cm-ink2)}
+
+/* 06 附近：步行圈地圖 */
+.cm-mapgrid{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:22px;align-items:start}
+.cm-map{border:1px solid var(--cm-line);border-radius:8px;background:var(--cm-paper);overflow:hidden}
+.cm-map svg{display:block;width:100%;height:auto}
+.cm-map .ring{fill:none;stroke:var(--cm-line2);stroke-dasharray:3 5}
+.cm-map .wave{fill:none;stroke:var(--cm-accent);stroke-width:1.2;opacity:0;transform-box:fill-box;transform-origin:center;animation:cm-wave 3.2s ease-out infinite}
+.cm-map .sweep{transform-origin:300px 220px;animation:cm-sweep 2.4s cubic-bezier(.4,0,.2,1) 1 both}
+.cm-map .pin{cursor:pointer}
+.cm-map .pin:focus{outline:none}
+.cm-map .pin:focus-visible .mk{stroke:var(--cm-ink);stroke-width:2.5}
+
+.cm-map text{font-size:12px;fill:var(--cm-ink)}
+.cm-map text.meta{font-size:11px;fill:var(--cm-ink3);font-family:var(--cm-mono)}
+.cm-pins{display:flex;flex-direction:column}
+.cm-pins button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 8px;border-bottom:1px solid var(--cm-line);font-size:13.5px}
+.cm-pins button:first-child{border-top:1px solid var(--cm-line)}
+.cm-pins button:hover,.cm-pins button[aria-current="true"]{background:var(--cm-tint)}
+.cm-pins button:focus-visible{outline:2px solid var(--cm-accent);outline-offset:-2px}
+.cm-pins .nm{flex:1}
+.cm-chip{font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--cm-line2);color:var(--cm-ink2);white-space:nowrap}
+.cm-chip.going{border-color:var(--cm-accent);color:var(--cm-accent)}
+.cm-chip.won{background:var(--cm-accent);border-color:var(--cm-accent);color:var(--cm-accent-ink)}
+.cm-chip.past{border-color:var(--cm-leak);color:var(--cm-leak)}
+.cm-cond{font-size:12.5px;color:var(--cm-ink3);margin-bottom:10px}
+
+/* 07 資料：四種狀態 */
+.cm-data{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px}
+.cm-lane h3{margin:0 0 10px;font-size:13px;font-weight:650;display:flex;align-items:center;gap:8px}
+.cm-lane h3 .c{margin-left:auto;font-family:var(--cm-mono);font-weight:400;color:var(--cm-ink3)}
+.cm-lane h3 .sym{width:10px;height:10px;border-radius:50%;flex:none}
+.cm-lane.on h3 .sym{background:var(--cm-accent)}
+.cm-lane.can h3 .sym{border:1.5px solid var(--cm-accent)}
+.cm-lane.only h3 .sym{background:var(--cm-ink);border-radius:2px}
+.cm-lane.none h3 .sym{border:1.5px dashed var(--cm-ink3)}
+.cm-lane ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.cm-lane li{font-size:13px;padding:7px 10px;border:1px solid var(--cm-line);border-radius:6px;background:var(--cm-paper)}
+.cm-lane.none li{border-style:dashed;color:var(--cm-ink2);background:transparent}
+.cm-lane li.empty{border:0;background:transparent;color:var(--cm-ink3);padding-inline:0;animation:none}
+
+/* 08 下一步 */
+.cm-next{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:24px;align-items:start}
+.cm-task{padding:18px 20px;border:1.5px solid var(--cm-accent);border-radius:8px;background:var(--cm-paper)}
+.cm-task .k{font-size:11px;letter-spacing:.08em;color:var(--cm-accent);font-family:var(--cm-mono)}
+.cm-task .t{font-size:18px;font-weight:650;margin-top:4px}
+.cm-bubble{margin-top:14px;padding:12px 14px;border-radius:8px;background:var(--cm-bg);font-size:13.5px;line-height:1.7;position:relative}
+.cm-bubble .to{font-size:11.5px;color:var(--cm-ink3);margin-bottom:4px;display:flex;justify-content:space-between;gap:8px}
+.cm-acts{display:flex;gap:8px;margin-top:12px}
+.cm-acts span{font-size:12.5px;padding:5px 12px;border-radius:6px;border:1px solid var(--cm-line2);color:var(--cm-ink2)}
+.cm-acts span.pri{background:var(--cm-accent);border-color:var(--cm-accent);color:var(--cm-accent-ink)}
+.cm-weekstrip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.cm-weekstrip div{display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 0;border:1px solid var(--cm-line);border-radius:6px;font-size:12px;color:var(--cm-ink3);background:var(--cm-paper)}
+.cm-weekstrip div.on{border-color:var(--cm-accent);color:var(--cm-ink);background:var(--cm-tint)}
+.cm-weekstrip div i{width:8px;height:8px;border-radius:50%;background:transparent}
+.cm-weekstrip div.on i{background:var(--cm-accent);animation:cm-breathe 1.6s ease-in-out infinite}
+.cm-rhythm .cap{font-size:13.5px;margin-top:10px;font-weight:600}
+.cm-rhythm .rc{font-size:12px;color:var(--cm-ink3);margin-top:4px}
+
+/* 出處抽屜 */
+.cm-drawer{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));width:min(400px,calc(100% - 32px));max-height:62vh;overflow:auto;background:var(--cm-paper);border:1px solid var(--cm-line2);border-radius:8px;padding:16px 18px;z-index:20;animation:cm-up .25s ease both}
+.cm-drawer .dh{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.cm-drawer .dh b{font-size:14.5px}
+.cm-drawer .dh button{border:0;background:transparent;color:var(--cm-ink3);cursor:pointer;font-size:13px}
+.cm-drawer .dv{font-size:22px;font-weight:700;margin-top:6px}
+.cm-drawer .db{font-size:13.5px;color:var(--cm-ink2);margin-top:8px;white-space:pre-wrap;line-height:1.75}
+.cm-drawer .ds{margin-top:10px;font-size:12px;color:var(--cm-ink3);display:flex;align-items:center;gap:8px}
+.cm-toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--cm-ink);color:var(--cm-bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:21;max-width:calc(100% - 32px)}
+
+/* 動態 */
+.cm.cm-enter .cm-in,.cm.cm-enter .cm-br,.cm.cm-enter .cm-lane li:not(.empty){animation:cm-up .6s cubic-bezier(.2,.7,.2,1) both}
+.cm.cm-enter .cm-key .u{animation:cm-grow .9s .5s cubic-bezier(.2,.7,.2,1) both}
+.cm.cm-enter .cm-funnel .bar{animation:cm-rise-y .8s cubic-bezier(.2,.7,.2,1) both}
+.cm.cm-enter .cm-week .sg{animation:cm-grow .7s cubic-bezier(.2,.7,.2,1) both}
+.cm.cm-enter .cm-week .sg.hand{animation:cm-grow .7s cubic-bezier(.2,.7,.2,1) both,cm-breathe 2.6s 1.2s ease-in-out infinite}
+.cm.cm-enter .cm-map .pin .drop{animation:cm-drop .5s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes cm-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes cm-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes cm-rise-y{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes cm-draw{to{stroke-dashoffset:0}}
+@keyframes cm-ring{0%{opacity:.7;transform:scale(1)}100%{opacity:0;transform:scale(1.9)}}
+@keyframes cm-wave{0%{opacity:0;transform:scale(.2)}15%{opacity:.5}100%{opacity:0;transform:scale(1)}}
+@keyframes cm-sweep{0%{transform:rotate(-90deg);opacity:0}8%{opacity:.7}100%{transform:rotate(270deg);opacity:0}}
+@keyframes cm-march{to{stroke-dashoffset:-18}}
+@keyframes cm-drop{from{opacity:0;transform:translateY(-18px)}to{opacity:1;transform:none}}
+@keyframes cm-breathe{0%,100%{opacity:1}50%{opacity:.62}}
+@keyframes cm-blink{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes cm-spin{to{transform:rotate(360deg)}}
+
+@media (max-width:760px){
+  .cm-hero,.cm-time,.cm-mapgrid,.cm-next{grid-template-columns:minmax(0,1fr)}
+  .cm-formula,.cm-branches,.cm-data,.cm-learned{grid-template-columns:minmax(0,1fr)}
+  .cm-term,.cm-term+.cm-term{padding:14px 0 0 0}
+  .cm-term .arr{display:none}
+  .cm-term+.cm-term{border-top:1px solid var(--cm-line)}
+  .cm-funnel .n{font-size:17px}
+  .cm-h h2{font-size:19px}
+  .cm-links{display:none}
+  .cm-branches{margin-top:14px}
+}
+@media (prefers-reduced-motion:reduce){
+  .cm *,.cm *::before,.cm *::after{animation:none!important;transition:none!important}
+  .cm-term .arr path,.cm-links path{stroke-dashoffset:0}
+}
+.cm-map .pin .halo{opacity:0;transition:opacity .15s ease}
+.cm-map .pin.sel .halo{opacity:1}

@@ -3,11 +3,12 @@
 import argparse, copy, hashlib, http.cookies, json, mimetypes, os, pathlib, secrets, threading, time
 import urllib.request, urllib.error, urllib.parse, webbrowser
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from domain import empty, mutate, import_csv, parse_csv, publish, record, uid, now
+from domain import empty, mutate, import_csv, parse_csv, publish, record, uid, now, SCHEMA, LEGACY_SCHEMAS
 from catalog import CATALOG, BY_ID
 from interview import SECTIONS
 from companion import Companion, ensure, apply, resolve, finish
 from onboarding import handoff, resume
+from contextmap import merge as merge_map
 from workcycle import table_csv
 
 ROOT=pathlib.Path(__file__).resolve().parent
@@ -24,7 +25,8 @@ class Workspace:
         self.path=pathlib.Path(path).resolve(); self.path.mkdir(parents=True,exist_ok=True)
         self.file=self.path/"經營資料.json"; self.lock=threading.RLock(); self.vault=pathlib.Path(vault)
         self.state=json.loads(self.file.read_text()) if self.file.exists() else empty()
-        if self.state.get("schema")!="youfeng.studio/1": raise ValueError("資料版本不符，請先保留原資料並交由助手檢查。")
+        if self.state.get("schema") in LEGACY_SCHEMAS: self.state["schema"]=SCHEMA
+        if self.state.get("schema")!=SCHEMA: raise ValueError("資料版本不符，請先保留原資料並交由助手檢查。")
         self.keys=json.loads(self.vault.read_text()) if self.vault.exists() else {}
         for turn in ensure(self.state)['turns']:
             if turn.get('runtime'):turn['runtime']['active']=False
@@ -38,6 +40,13 @@ class Workspace:
         with self.lock:
             self.state=fn(self.state); atomic(self.file,self.state)
             return copy.deepcopy(self.state)
+    def pack(self):
+        """課程包裝了才有：版本與每一格的做法。讀不到就當沒裝，不影響免費版。"""
+        d=self.path/".business-room"/"pack"
+        try:
+            meta=json.loads((d/"installed.json").read_text(encoding="utf-8"));tactics=json.loads((d/"tactics.json").read_text(encoding="utf-8"))["tactics"]
+            return {"version":meta.get("version"),"tactics":tactics}
+        except (OSError,ValueError,KeyError,TypeError):return None
     def snapshot(self):
         with self.lock: return copy.deepcopy(self.state)
     def save_key(self,pid,key):
@@ -132,7 +141,7 @@ def make_server(workspace,port=0):
             route=urllib.parse.urlparse(self.path).path
             if route.startswith("/api/"):
                 if not self.authorized(): return self.respond(401,{"error":"請由原助手或工作台啟動檔重新開啟。"})
-                if route=="/api/state": return self.respond(200,{"state":workspace.snapshot(),"catalog":CATALOG,"interview_catalog":SECTIONS})
+                if route=="/api/state": return self.respond(200,{"state":workspace.snapshot(),"catalog":CATALOG,"interview_catalog":SECTIONS,"pack":workspace.pack()})
                 if route=="/api/agent/resume":return self.respond(200,resume(workspace.snapshot()))
                 if route=="/api/export": return self.respond(200,workspace.snapshot(),{"Content-Disposition":"attachment; filename=business.json"})
                 if route=="/api/companion/status":return self.respond(200,workspace.companion.status())
@@ -176,6 +185,9 @@ def make_server(workspace,port=0):
                         return s
                     return self.respond(200,{"state":workspace.update(agent_update)})
                 if route=="/api/agent/handoff":return self.respond(200,{"state":workspace.update(lambda s:handoff(s,data))})
+                if route=="/api/agent/map":
+                    state=workspace.update(lambda s:merge_map(s,data));m=state["map"]
+                    return self.respond(200,{"ok":True,"revision":state["revision"],"map_revision":m["revision"],"sections":sorted(k for k in m if k not in {"revision","updated","sources"})})
                 if route=="/api/companion/configure":return self.respond(200,{"state":workspace.companion.configure(data.get('mode'),data.get('prepare_imports'),data.get('prepare_results'))})
                 if route=="/api/observation/export":return self.respond(200,table_csv(workspace.snapshot(),data.get("id")))
                 if route=="/api/companion/review-result":return self.respond(200,{"state":workspace.companion.review_result(data)})

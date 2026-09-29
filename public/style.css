@@ -104,3 +104,14 @@
 @media(max-width:767px){.observation-table{align-items:flex-start;flex-direction:column}.observation-table>.row{width:100%}.observation-section h2{line-height:1.6}}
 .node.is-later{opacity:.55}.node.is-later .node-dot{border-style:dashed;background:transparent}.node.is-later small{color:var(--muted)}.node-leak{font-size:.64rem;margin-top:.45rem;line-height:1.5;color:var(--ink);font-variant-numeric:tabular-nums}.node-leak b{font-size:.92rem;font-weight:560;color:var(--amber)}.node-leak em{display:block;font-style:normal;font-size:.6rem;color:var(--muted)}
 .diag-why,.diag-skip{font-size:.83rem;margin:0 0 1rem}.diag-leak{border:1px solid var(--line);border-radius:var(--radius);padding:1rem 1.1rem;margin:0 0 1.6rem}.diag-amount{font-size:.85rem}.diag-amount b{font-size:1.25rem;font-weight:560;color:var(--amber);font-variant-numeric:tabular-nums}.diag-formula{font-size:.74rem;color:var(--muted);margin:.35rem 0 .8rem}.diag-leak dl{display:grid;grid-template-columns:auto 1fr;gap:.35rem 1.1rem;font-size:.8rem;margin:0}.diag-leak dt{color:var(--muted)}.diag-leak dd{margin:0;font-variant-numeric:tabular-nums}.diag-note{font-size:.7rem;color:var(--muted);margin:.8rem 0 0}
+
+/* 脈絡地圖（contextmap.css）接經營室的配色；選擇器加 body 以蓋過 contextmap.css 的預設 */
+body .cm{--cm-bg:var(--paper);--cm-paper:var(--surface);--cm-ink:var(--ink);--cm-ink2:var(--muted);--cm-ink3:#7a868e;--cm-accent:var(--accent);--cm-accent-ink:#fff;--cm-tint:var(--accent-soft);--cm-line:var(--line);--cm-line2:#cdd5d9;--cm-leak:var(--amber);--cm-leak-tint:#f6efe5;--cm-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.cm-home{margin-bottom:8px}
+.cm-divider{font-size:12px;letter-spacing:.08em;color:var(--muted);padding:18px 0 4px;border-top:1px solid var(--line);margin-top:8px}
+.growing{max-width:1120px;margin:0 auto;padding:24px 16px 72px}
+.growing-head{display:flex;align-items:center;gap:14px;padding-bottom:16px;margin-bottom:6px}
+.growing-head p{margin:0;color:var(--muted);font-size:14px}
+.growing-wait{display:flex;gap:8px;padding:64px 0}
+.growing-wait i{width:8px;height:8px;border-radius:50%;background:var(--muted);animation:cm-blink 1.2s ease-in-out infinite}
+.growing-wait i:nth-child(2){animation-delay:.2s}.growing-wait i:nth-child(3){animation-delay:.4s}
