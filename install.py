@@ -25,7 +25,7 @@ def install(dest):
     prompt=(ROOT/'開始.md').read_text(encoding='utf-8')
     (dest/"開始.md").write_text(prompt.replace('说','說'),encoding="utf-8")
     manifest={str(p.relative_to(target)):hashlib.sha256(p.read_bytes()).hexdigest() for p in target.rglob('*') if p.is_file() and '__pycache__' not in p.parts}
-    (dest/".安裝回執.json").write_text(json.dumps({"version":"v11-preview.1","files":manifest},ensure_ascii=False,indent=2))
+    (dest/".安裝回執.json").write_text(json.dumps({"version":"v11-preview.2","files":manifest},ensure_ascii=False,indent=2))
     return {"ok":True,"workspace":str(dest),"files_verified":len(manifest),"start":"請讀開始.md，帶我開始。"}
 if __name__=="__main__":
     p=argparse.ArgumentParser();p.add_argument("--workspace",required=True);a=p.parse_args();print(json.dumps(install(a.workspace),ensure_ascii=False))

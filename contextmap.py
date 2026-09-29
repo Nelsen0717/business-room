@@ -3,16 +3,22 @@
 助手每答完一站，就把長出來的那幾塊交進來（agent.py map --file）。同一塊再交一次就換成新的；
 沒交的塊保留原樣。畫面上的每個數字都要指得回一條出處（sources），答不出「從哪來」的數字不收。
 """
-import copy
+import copy, re
 from domain import NODES, now
 
 SRC = {'said', 'data', 'web', 'est', 'calc', 'youest'}
 STEPS = ('S', 'C', 'A', 'L', 'E')
-SECTIONS = ('store', 'scale', 'who', 'key', 'flow', 'success', 'time', 'opps', 'map', 'data', 'next')
+SECTIONS = ('store', 'scale', 'who', 'key', 'flow', 'success', 'time', 'opps', 'map', 'data', 'next', 'persona')
 NODE_STATES = {'leak', 'hole', 'rel', 'later', 'unknown'}
 PIN_STATES = {'todo', 'going', 'won', 'past'}
 LANES = ('on', 'can', 'only', 'none')
 OPP_KINDS = {'補洞', '放大成功', '交給助手'}
+HUES = ('orange', 'coral', 'berry', 'violet', 'indigo', 'teal', 'green', 'mustard')
+EYES = ('capsule', 'round', 'sleepy')
+# 本命星座的每一顆星，都要指到地圖上真的有的一件事（格式照這張表）
+STAR_PATH = re.compile(r'^(who\.facts\.\d|who\.fix|key|success\.terms\.\d|time\.(week\.\d|free|handoff)'
+                       r'|flow\.(nodes\.(找客|迎客|成交|口碑|養客|回客)|eq\.inputs\.\d|funnel\.rows\.\d)'
+                       r'|opps\.items\.\d(\.ctx\.\d)?|map\.pins\.\d{1,2}|data\.lanes\.\d\.items\.\d{1,2})$')
 
 
 def _t(value, label, limit, required=True):
@@ -241,7 +247,28 @@ def sources(d):
             for k, v in ((k, _dict(v, '出處')) for k, v in d.items())}
 
 
-CHECK = dict(store=store, scale=scale, who=who, key=key, flow=flow, success=success, time=time, opps=opps, map=map_, data=data, next=next_)
+def persona(d):
+    """本命：這家店的星座、顏色、助手的眼睛。骨架固定、表情自由——顏色和眼睛只能從定好的選項挑，
+    星座的每一顆星都要指到地圖上真的有的一件事（不是算命）。"""
+    d = _dict(d, '本命')
+    hue, eyes = d.get('hue', 'orange'), d.get('eyes', 'capsule')
+    if hue not in HUES:
+        raise ValueError('本命色只能從這八個挑：' + '、'.join(HUES) + '。')
+    if eyes not in EYES:
+        raise ValueError('助手的眼睛只能從這三種挑：' + '、'.join(EYES) + '。')
+    out = dict(hue=hue, eyes=eyes)
+    if d.get('sign') is not None:
+        g = _dict(d['sign'], '本命星座')
+        stars = _list(g.get('stars'), '本命星座的星', 5, 3)
+        if not all(isinstance(x, str) and STAR_PATH.match(x) for x in stars):
+            raise ValueError('本命星座的每一顆星都要指到地圖上的一件事，例如 who.facts.0、success.terms.2、time.week.1。')
+        if len(set(stars)) != len(stars):
+            raise ValueError('本命星座的星不能重複。')
+        out['sign'] = dict(name=_t(g.get('name'), '本命星座的名字', 6), line=_t(g.get('line'), '本命星座的那一句話', 28), stars=stars)
+    return out
+
+
+CHECK = dict(store=store, scale=scale, who=who, key=key, flow=flow, success=success, time=time, opps=opps, map=map_, data=data, next=next_, persona=persona)
 
 
 def validate(payload):
