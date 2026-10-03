@@ -5,7 +5,8 @@
 （`X-Pack-Version`、`X-Pack-Sha256`）→ 整份 zip 先核一次 sha256 對不對得上標頭 →
 解到暫存資料夾 → 逐檔核對 zip 裡 `manifest.json` 記的 sha256 → 全部核對通過才換上
 `<workspace>/我的經營室/.business-room/pack/`（原本的那份留一份 `pack.prev/`）→
-寫一份 `pack/installed.json`（版本、裝的時間、課程碼雜湊前 8 碼；不存明碼）。任何一步
+課程包裡的模組檔（`pack/模組/<id>.md`，14 份處方）裝進 `.business-room/模組/` →
+寫一份 `pack/installed.json`（版本、裝的時間、課程碼雜湊前 8 碼、裝了幾份模組；不存明碼）。任何一步
 核對不過，暫存資料夾直接丟掉、舊版原封不動，不會半途換掉一半。
 
 用法：
@@ -15,6 +16,18 @@
 
 給之後接線用的兩個函式：`redeem(code, workspace, url)` 跟 `installed(workspace)`。
 """
+import sys
+if __name__ == "__main__" and sys.path and not getattr(sys.flags, "safe_path", 0):
+    # 找模組的順序：標準函式庫 → 經營室自己這一層（.business-room/）→ 其他（PYTHONPATH、套件）。
+    # 資料夾裡多出來的 json.py 蓋不掉標準函式庫，PYTHONPATH 裡同名的 domain.py 也蓋不掉經營室自己的；
+    # 程式被改壞時 agent.py restore、install.py 還跑得動。agent、install、server、redeem 四支入口同一段
+    # 標準函式庫在哪：Python 的安裝位置，加上啟動時就載入的 os 所在的那一層（Homebrew 這類安裝，安裝位置是捷徑、sys.path 寫的是實際位置）
+    _here = sys.path.pop(0)
+    _roots, _os = {sys.base_prefix, sys.base_exec_prefix}, sys.modules.get("os")
+    if _os is not None and getattr(_os, "__file__", None):
+        _roots |= {_os.path.realpath(sys.base_prefix), _os.path.realpath(sys.base_exec_prefix), _os.path.dirname(_os.path.dirname(_os.__file__))}
+    _lib = [_p for _p in sys.path if _p and _p.startswith(tuple(_roots)) and "-packages" not in _p]
+    sys.path[:] = _lib + [_here] + [_p for _p in sys.path if _p not in _lib]
 import argparse
 import datetime
 import hashlib
@@ -44,7 +57,11 @@ def normalize(code):
 
 
 def _pack_dir(workspace):
-    return pathlib.Path(workspace).expanduser().resolve() / "我的經營室" / ".business-room" / "pack"
+    # 兩種都收：學員開的資料夾（裡面有「我的經營室」），或「我的經營室」本身（跟 agent.py 的 --workspace 一樣）
+    base = pathlib.Path(workspace).expanduser().resolve()
+    if base.name != "我的經營室" and not (base / ".business-room").is_dir():
+        base = base / "我的經營室"
+    return base / ".business-room" / "pack"
 
 
 def installed(workspace):
@@ -83,6 +100,24 @@ def _request(code, url):
 
 
 _TAMPERED_MESSAGE = "課程包檔案好像被動過，已經停止安裝；原本的版本沒有被換掉。"
+MODS = "模組"
+
+
+def _install_mods(pack_dir):
+    """課程包帶的模組檔（處方）裝進 .business-room/模組/，小二從那裡讀。逐檔換新，不刪別的檔；
+    他自己長的模組在「我的經營室/模組/」，不在這裡，不會被碰到。回裝了幾份。"""
+    source = pack_dir / MODS
+    if not source.is_dir():
+        return 0
+    target = pack_dir.parent / MODS
+    target.mkdir(exist_ok=True)
+    count = 0
+    for f in sorted(source.glob("*.md")):
+        if f.name.startswith("."):
+            continue
+        shutil.copy2(f, target / f.name)
+        count += 0 if f.name == "README.md" else 1
+    return count
 
 
 def _safe_member_names(names):
@@ -151,12 +186,14 @@ def redeem(code, workspace, url=None):
             shutil.rmtree(staging, ignore_errors=True)
 
     version = pack_meta.get("version", "unknown")
+    mods = _install_mods(pack_dir)
     installed_record = {
         "version": version,
         "installed_at": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         # 服務端比對用的雜湊有加只存在伺服器的 PEPPER，這裡沒有 PEPPER，算不出同一個值；
         # 這個欄位只是本機的指紋，用來之後對「這次裝的是哪組碼」，不是安全邊界。
         "code_hash_prefix": hashlib.sha256(normalize(code).encode("utf-8")).hexdigest()[:8],
+        "mods": mods,
     }
     (pack_dir / "installed.json").write_text(
         json.dumps(installed_record, ensure_ascii=False, indent=2), encoding="utf-8"
@@ -164,7 +201,7 @@ def redeem(code, workspace, url=None):
     return {
         "ok": True,
         "version": version,
-        "message": "課程包裝好了，版本 %s。" % version,
+        "message": "課程包裝好了，版本 %s。" % version + ("模組 %d 份放好了。" % mods if mods else ""),
         "workspace": str(pack_dir),
     }
 
@@ -174,7 +211,7 @@ def main(argv=None):
     parser.add_argument("code", help="課程碼，例如 ABCD-2345-WXYZ")
     parser.add_argument(
         "--workspace", default=".",
-        help="學員開的資料夾（會在裡面建「我的經營室」；預設目前所在的資料夾）",
+        help="「我的經營室」，或它的上一層（學員開的資料夾）；預設目前所在的資料夾",
     )
     parser.add_argument("--url", default=None, help="服務網址（測試用；預設 SERVICE_URL）")
     args = parser.parse_args(argv)

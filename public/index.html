@@ -1,3 +1,90 @@
 <!doctype html>
-<html lang="zh-Hant-TW" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"><title>經營室</title><link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="preload" href="/fonts/Geist-var.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/vendor/leaflet.css"><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/contextmap.css"><script src="/vendor/leaflet.js" defer></script><script src="/ctxviz.js" defer></script><script src="/contextmap.js" defer></script><script src="/app.js" type="module"></script></head>
-<body><a href="#content" class="skip">跳到主要內容</a><div id="app"><div class="loading"><span class="brandmark">經營室</span><p>正在打開你的經營室…</p></div></div><div id="overlay"></div><div id="toast" role="status" aria-live="polite"></div></body></html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#EEEDEA" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0E0E0F" media="(prefers-color-scheme: dark)">
+<title>經營室・小二</title>
+<link rel="icon" href="/brand/favicon.ico" sizes="32x32">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png">
+<!-- 1. 字型 -->
+<link rel="preload" href="/fonts/Geist-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/GeistMono-var.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face{font-family:"Geist";src:url(/fonts/Geist-var.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"Geist Mono";src:url(/fonts/GeistMono-var.woff2) format("woff2");font-weight:100 900;font-display:swap}
+@font-face{font-family:"經營室字標";src:url(/fonts/wordmark.woff2) format("woff2");font-weight:100 900;font-display:swap}
+</style>
+<!-- 2. 共用畫法 → 3. 你的小二 → 4. 經營室 → 5. 外殼 -->
+<script src="/ctxviz.js" defer></script>
+<script src="/companion.js" defer></script>
+<link rel="stylesheet" href="/companion.css">
+<script src="/contextmap.js" defer></script>
+<link rel="stylesheet" href="/contextmap.css">
+<script src="/app.js" defer></script>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<a href="#main" class="xs-skip">跳到主要內容</a>
+<div id="app"><div class="xs-boot" role="status"><img src="/icon.svg" alt="" width="44" height="44"><p>正在打開經營室…</p></div></div>
+<div id="layer"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<script>
+/* 最小的救援：app.js 沒接手（被改壞、讀不到）時才動。只用瀏覽器原生的東西讀經營室的指紋，程式被改過就給「還原成原版」。
+   伺服器的 CSP 只放行這一段的指紋（server.py 的 RESCUE）；改了這一段，那裡要一起改（tests/test_v14_hardening.py 會對）。 */
+(function () {
+  var NM = '小二';
+  function key() {
+    var m = /(?:^#|&)token=([^&]+)/.exec(location.hash);
+    if (m) { try { return decodeURIComponent(m[1]); } catch (e) { } }
+    try { return localStorage.getItem('xiaoer.key') || ''; } catch (e) { return ''; }
+  }
+  function req(path, body) {
+    var h = { 'X-Workbench': '1' }, k = key();
+    if (k) h.Authorization = 'Bearer ' + k;
+    if (body) h['Content-Type'] = 'application/json';
+    return fetch(path, { method: body ? 'POST' : 'GET', credentials: 'same-origin', headers: h, body: body || undefined })
+      .then(function (r) { if (!r.ok) throw new Error(String(r.status)); return r.json(); });
+  }
+  function show(title, lead, btn, go) {
+    var app = document.getElementById('app'), d = document;
+    if (!app) return;
+    var main = d.createElement('main'), sec = d.createElement('section'), h = d.createElement('h1'), p = d.createElement('p'), acts = d.createElement('div');
+    main.className = 'xs-main v-error'; sec.className = 'xs-screen'; sec.setAttribute('role', 'alert');
+    h.className = 'xs-screen-title'; h.textContent = title; p.className = 'xs-screen-lead'; p.textContent = lead; acts.className = 'xs-screen-acts';
+    if (btn) {
+      var b = d.createElement('button'); b.type = 'button'; b.className = 'xs-btn'; b.textContent = btn; if (go === restore) b.setAttribute('data-restore', ''); b.onclick = go;
+      acts.appendChild(b);
+    }
+    sec.appendChild(h); sec.appendChild(p); sec.appendChild(acts); main.appendChild(sec);
+    app.textContent = ''; app.appendChild(main);
+  }
+  function back(n) {
+    req('/api/state').then(function () { location.reload(); }, function () { if (n > 0) setTimeout(function () { back(n - 1); }, 1000); else location.reload(); });
+  }
+  function restore() {
+    show('正在還原…', '換回安裝時的樣子；你的經營資料不會動。');
+    req('/api/integrity/restore', '{}').then(function (r) {
+      if (r.failed && r.failed.length) { show('有 ' + r.failed.length + ' 個檔還原不了', '跟' + NM + '說「重新安裝經營室」；你的經營資料沒有動。'); return; }
+      show('還原好了', r.restarting ? '經營室重開一下，幾秒內自己接回來。' : '馬上重新整理這一頁。');
+      setTimeout(function () { back(20); }, r.restarting ? 1500 : 300);
+    }, function () { show('這次沒有還原', '跟' + NM + '說「重新安裝經營室」；你的經營資料沒有動。'); });
+  }
+  function check() {
+    if (!document.querySelector('#app .xs-boot')) return;
+    req('/api/state').then(function (j) {
+      var it = (j.pack || {}).integrity || {}, c = ((j.state || {}).map || {}).companion || {};
+      if (typeof c.name === 'string' && c.name) NM = c.name;
+      if (it.ok === false && it.checked !== false && it.can_restore !== false) show('經營室的程式被改過', '畫面才打不開。按一下換回安裝時的樣子；你的經營資料不會動。', '還原成原版', restore);
+      else if (it.ok === false && it.checked !== false) show('經營室的程式被改過', '這一份還原不了：跟' + NM + '說「重新安裝經營室」；你的經營資料不會動。');
+      else show('經營室打不開', '畫面沒有載入完整。重新整理一次；還是一樣，跟' + NM + '說「打開我的經營室」。', '重新整理', function () { location.reload(); });
+    }, function () { show('經營室打不開', '經營室沒有開著，或這一頁沒帶到鑰匙：回到對話跟' + NM + '說「打開我的經營室」。'); });
+  }
+  window.addEventListener('load', function () { setTimeout(check, 2500); });
+})();
+</script>
+</body>
+</html>

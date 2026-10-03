@@ -1,403 +1,567 @@
-import {report as calculateReport, flowSummary as summarizeFlow} from './metrics.mjs';
-const $=(q,root=document)=>root.querySelector(q), $$=(q,root=document)=>[...root.querySelectorAll(q)];
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const money=n=>new Intl.NumberFormat('zh-TW',{maximumFractionDigits:0}).format(n);
-const date=v=>v?new Date(v).toLocaleDateString('zh-TW',{month:'numeric',day:'numeric'}):'尚未紀錄';
-const safeURL=u=>{try{const v=new URL(u);return ['https:','http:'].includes(v.protocol)?v.href:''}catch{return ''}};
-const names={overview:'經營總覽',journey:'客人旅程',map:'機會地圖',context:'第二大腦'};
-const nodes=['找客','迎客','成交','口碑','養客','回客'];
-const kinds={service:'預約與服務',local:'街區與合作',commerce:'商品與電商'};
-const demoNames={service:'瑩瑩美甲',local:'王記便當',commerce:'初禾手工皂'};
-const widgetNames={pulse:'期間數字',flows:'實際做法',work:'今日工作與結果',focus:'今天的重點',journey:'客人旅程',revenue:'營收紀錄',people:'需要關注的對象',map:'附近的機會'};
-const paths={overview:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',journey:'M4 7h5m6 0h5M7 7v10h10 M9 7a3 3 0 1 0-6 0a3 3 0 1 0 6 0 M21 7a3 3 0 1 0-6 0a3 3 0 1 0 6 0 M20 17a3 3 0 1 0-6 0a3 3 0 1 0 6 0',map:'M3 5l6-3 6 3 6-3v17l-6 3-6-3-6 3z M9 2v17 M15 5v17',context:'M12 3v5M5 17l4-5m6 0 4 5 M15 11a3 3 0 1 0-6 0a3 3 0 1 0 6 0 M14 3a2 2 0 1 0-4 0a2 2 0 1 0 4 0 M7 19a2 2 0 1 0-4 0a2 2 0 1 0 4 0 M21 19a2 2 0 1 0-4 0a2 2 0 1 0 4 0',arrow:'M4 12h16m-6-6 6 6-6 6',close:'M5 5l14 14M5 19 19 5',plus:'M12 4v16M4 12h16',file:'M5 2h9l5 5v15H5z M14 2v6h5 M8 12h8M8 16h6',link:'M10 13l4-4 M8 16l-2 2a4 4 0 0 1-6-6l5-5a4 4 0 0 1 6 0 M16 8l2-2a4 4 0 0 1 6 6l-5 5a4 4 0 0 1-6 0',help:'M9 9a3 3 0 1 1 5 2c-2 1-2 2-2 3 M12 18h.01 M22 12a10 10 0 1 0-20 0a10 10 0 1 0 20 0',tune:'M4 7h16 M4 17h16 M8 4v6M16 14v6',check:'M5 12l4 4L20 5',back:'M20 12H4m6-6-6 6 6 6',search:'M16 16l5 5M18 10a8 8 0 1 0-16 0a8 8 0 1 0 16 0',external:'M14 3h7v7 M21 3 10 14 M11 5H3v16h16v-8',up:'m6 15 6-6 6 6',down:'m6 9 6 6 6-6',people:'M15 7a3 3 0 1 0-6 0a3 3 0 1 0 6 0 M5 21v-3a7 7 0 0 1 14 0v3',clock:'M12 7v5l3 2 M22 12a10 10 0 1 0-20 0a10 10 0 1 0 20 0'};
-const icon=k=>`<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="${paths[k]||paths.file}"/></svg>`;
-// 對話是輸入、經營室是輸出：要學員在畫面上填的入口預設收起，進階使用者可在偏好打開（preferences.advanced_inputs）。
-const INPUT_ACTS=new Set(['import','material','interview','context-question','add-person','search-places','csv-paste','notion-import','notion-pages','provider','connections','connections-catalog','request-provider']);
-const INPUT_LABELS=new Set(['記一筆','填這張小表']);
-const btn=(label,act,cls='',attrs='')=>(!state?.preferences?.advanced_inputs&&(INPUT_ACTS.has(act)||INPUT_LABELS.has(label)))?'':`<button type="button" class="btn ${cls}" data-act="${act}" ${attrs}>${label}</button>`;
-const SAY={who:'【脈絡地圖・我理解的你】這句我想改：',flow:'【脈絡地圖・客人怎麼走】我想聊聊這一格：',success:'【脈絡地圖・成功公式】我想補充：',time:'【脈絡地圖・時間花在哪】我的時間其實是：',opps:'【脈絡地圖・三個機會】我想先做：',map:'【脈絡地圖・附近的公司】幫我再找：',data:'【脈絡地圖・資料】我手上還有這些資料：',next:'【脈絡地圖・下一步】我想改成：'};
-let cmHandle=null,packInfo=null;
-let interviewCatalog=[],journeyView='flows';
-let state,catalog=[],page='overview',mapObj,mapCamera,pendingRender=false,panel=null,lastFocus,tourIndex=0,csvDraft=null,providerFilter='推薦',preferencesDraft=null;
-let toastTimer, preparationPanelId=null;
-let companionOpen=false, companionTarget=null, companionDraft='', companionWorkingDraft='', companionNotice='', assistantStatus=null;
+/* 小二 by N・經營室的外殼 v13.2（2026-10-02 整份重寫，舊外殼不留）
+   ──────────────────────────────────────────────────────────────────────────
+   只做五件事，其他都交給別的檔：
+     1. 頂欄：字標「小二. by N」｜他的小二（XiaoerCompanion.mount 的小頭像，會跟滑鼠轉頭）＋名字｜店名
+        （10/2 晚拿掉「免費版／課程包」標籤：付費狀態一句話就能叫小二改，畫面也不知道看的人付過錢沒有；
+         裝沒裝課程包由小二自己讀，真的用到時在對話裡講一次）
+     2. 主畫面：還沒訪談 → 第一個畫面；有地圖 → 經營室（訪談中與日常同一頁，ContextMap.render 畫）
+     3. 「你的小二」調整器：點頂欄的小二，或經營室裡帶 data-xe-open 的入口（也接 opts.onCompanion）
+        → 面板裡放 XiaoerCompanion.customizer；存檔 POST /api/companion，409 重讀再提示
+     4. 今天的按鈕寫回 POST /api/map/act；要貼回對話的那幾句（草稿、「這不對」、回答「想問你」）複製到剪貼簿（複製不了就攤開原文讓他自己選）。
+        10/3：經營室各塊的「跟小二說」拿掉了，只留真的要複製的地方。
+        調整器裡那三句也走這裡，提示由調整器寫在那三句上面、用名字格裡現在的名字；不浮出回音，免得蓋住面板的標題
+     5. 載入中、錯誤、連線斷了的畫面；每秒讀一次 /api/state，有變才換
+   只用到的伺服器入口：/api/session、/api/state、/api/map/act、/api/companion（GET／POST）；
+   v14 做成你的形狀（介面約定 /Users/nelsen/wip/v14-work-20261003/介面約定.md 第 4 節）再加：/api/layout（點組名收合）、
+   /api/module/act｜revert｜pause（模組卡的按鈕）、/api/integrity/restore（程式被改過時還原）；照片由 companion.js 從 /api/asset 讀。
+   新路由還沒有（404）或連不上時畫面照常，經營室講一句白話。網址帶 ?safe=1 是安全模式：只畫內建的塊、小二畫回原本的樣子（純前端判斷）。
+   寫入一律帶 X-Workbench: 1。
+   鑰匙（10/2 晚改）：網址上的 #token= 留著、也記在這個網址自己的瀏覽器儲存裡。側邊瀏覽器被重建、cookie 不見時，
+   用它自己重換一次，不會變成「過期」；伺服器重開沿用同一個埠與同一把鑰匙，所以同一個網址一直能用。
+   真的換不回來才請他回對話說「打開我的經營室」，並給一顆複製鍵。
+   畫面上的字：台灣繁中白話；指小二的地方一律用他取的名字（companion.name）。
+   ────────────────────────────────────────────────────────────────────────── */
+(function () {
+  'use strict';
+  var XC = window.XiaoerCompanion, CM = window.ContextMap, V = window.CtxViz;
+  var POLL_MS = 1000;
+  var WORDMARK = '<svg xmlns="http://www.w3.org/2000/svg" class="tb-wm" aria-hidden="true" focusable="false" viewBox="0 0 3238.75 923"><path class="wm-ink" d="M639 248Q742 296 805 351.5Q868 407 898.5 461Q929 515 933 560Q937 605 922 633.5Q907 662 878.5 666Q850 670 815 642Q808 593 789 541.5Q770 490 744.5 439Q719 388 689 341.5Q659 295 628 254ZM196 235 360 299Q357 307 349 312Q341 317 322 317Q293 380 249 449.5Q205 519 145.5 583.5Q86 648 8 696L0 687Q39 640 70.5 583Q102 526 126.5 465Q151 404 168.5 345Q186 286 196 235ZM423 0 584 16Q582 26 574 33.5Q566 41 547 44V774Q547 817 535 847.5Q523 878 486 897Q449 916 372 923Q368 892 361 870.5Q354 849 337 834Q321 820 295 809.5Q269 799 219 790V777Q219 777 234.5 778Q250 779 273.5 780Q297 781 322.5 782.5Q348 784 368.5 785Q389 786 397 786Q413 786 418 781Q423 776 423 765ZM1097 742H1808L1884 641Q1884 641 1898 652Q1912 663 1933 680.5Q1954 698 1978 718Q2002 738 2021 755Q2017 771 1992 771H1106ZM1195 179H1712L1786 81Q1786 81 1799.5 91.5Q1813 102 1834 119.5Q1855 137 1877.5 156Q1900 175 1919 191Q1915 207 1890 207H1203Z"/><circle class="wm-dot" cx="2196" cy="740" r="95"/><g><path class="wm-by" d="M2561.45 839.11Q2546.51 839.11 2534.58 833.82Q2522.64 828.54 2514.38 819.02Q2506.11 809.5 2501.99 797.11L2506.77 790.91L2504.89 835H2471.5V592.08H2507.3V694.48L2503.81 687.05Q2506.73 677.1 2514.68 668.39Q2522.64 659.69 2534.7 654.22Q2546.76 648.74 2561.45 648.74Q2584.66 648.74 2601.7 660.25Q2618.74 671.76 2627.99 693.06Q2637.23 714.35 2637.23 743.92Q2637.23 773.5 2627.99 794.79Q2618.74 816.09 2601.7 827.6Q2584.66 839.11 2561.45 839.11ZM2555.06 806.32Q2576.34 806.32 2588.12 789.74Q2599.9 773.17 2599.9 743.92Q2599.9 714.42 2588.12 697.97Q2576.34 681.53 2555.58 681.53Q2540.62 681.53 2529.76 688.87Q2518.89 696.22 2513.1 710.16Q2507.3 724.11 2507.3 743.92Q2507.3 763.22 2513.14 777.25Q2518.97 791.29 2529.67 798.8Q2540.36 806.32 2555.06 806.32ZM2692.85 886.32V856.4H2715.28Q2724.61 856.4 2729.35 853.62Q2734.1 850.83 2736.49 844.09L2742.42 828.29H2730.61L2664.44 652.85H2702.65L2753.71 794.55L2801.18 652.85H2839.39L2767.06 855.21Q2761.36 871.65 2749.78 878.98Q2738.2 886.32 2718.84 886.32Z"/><path class="wm-ink" d="M2921.43 812.23L2921.02 815.07 2920.98 817.95 2921.32 820.8 2922.03 823.59 2923.09 826.26 2924.5 828.76 2926.22 831.07 2928.22 833.12 2930.48 834.9 2932.95 836.37 2935.59 837.51 2938.35 838.29 2941.2 838.7 2944.07 838.74 2946.92 838.4 2949.71 837.69 2952.38 836.63 2954.89 835.22 2957.19 833.5 2959.25 831.5 2961.02 829.24 2962.49 826.77 2963.63 824.13 2964.41 821.37 3009.35 609.91 3102.7 818.71 3104.47 822.13 3106.07 824.58 3108.54 827.63 3110.61 829.71 3112.06 830.97 3114.39 832.71 3117.73 834.72 3119.38 835.54 3122 836.61 3125.69 837.73 3127.35 838.09 3130.05 838.51 3133.84 838.76 3138.03 838.58 3141.75 838.04 3145.63 837.08 3148.05 836.27 3150.4 835.32 3153.75 833.66 3155.92 832.38 3158.01 830.98 3160.98 828.66 3162.83 826.98 3164.59 825.19 3166.25 823.31 3167.79 821.32 3169.22 819.24 3170.54 817.06 3171.72 814.8 3172.77 812.45 3173.67 810.02 3174.42 807.51 3184.94 759.25 3193.67 720.55 3202.69 681.82 3215.78 627.41 3217.61 618.91 3222.29 594.93 3225.13 579.09 3227.84 563.09 3232.88 531.31 3238.65 491.64 3238.75 490.46 3238.7 489.27 3238.51 488.1 3238.18 486.95 3237.71 485.86 3237.12 484.83 3236.4 483.88 3235.58 483.02 3234.66 482.26 3233.66 481.63 3232.59 481.11 3231.46 480.73 3230.3 480.49 3229.11 480.39 3227.92 480.43 3226.75 480.61 3225.6 480.94 3224.51 481.39 3223.47 481.98 3222.52 482.69 3221.65 483.51 3220.89 484.42 3220.25 485.42 3216.67 493.87 3210.63 508.8 3201.83 531.44 3193.42 554.25 3185.48 577.18 3180.44 592.71 3177.95 600.77 3173.41 616.43 3171.23 624.92 3161.79 663.89 3152.64 702.93 3143.79 741.91 3134.81 782.89 3021.94 530.42 3020.6 527.88 3018.59 525.11 3016.59 523.06 3014.33 521.28 3011.86 519.81 3009.22 518.67 3006.98 518.01 3004.15 517.53 3001.28 517.42 2998.42 517.69 2995.1 518.49 2992.43 519.55 2989.92 520.96 2988.04 522.33 2985.93 524.28 2983.78 526.94 2982.31 529.41 2981.18 532.05 2980.4 534.81Z"/></g></svg>';
+  var LOOK_KEYS = ['name', 'call', 'tone', 'voice', 'hello', 'hue', 'eyes', 'face', 'follow', 'blink', 'skin', 'photo'];
+  var SAFE = /(?:^\?|&)safe=1(?:&|$)/.test(location.search);   // 安全模式：只畫內建的塊，小二畫回原本的樣子
 
-function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('visible'),4200)}
-async function api(route,data,extra={}){
- const options={credentials:'same-origin',headers:{'Content-Type':'application/json','X-Workbench':'1',...extra}};
- if(data!==undefined){options.method='POST';options.body=JSON.stringify(data)}
- const response=await fetch(route,options);let r;try{r=await response.json()}catch{throw Error('工作台沒有回傳完整資料，請請原助手重新開啟。')}
- if(!response.ok)throw Error(r.error||'這次沒有完成，請再試一次。');return r;
-}
-async function change(op,data){const r=await api('/api/mutate',{op,data});state=r.state;render();return state}
-function current(){return state.actions.find(a=>!['done','dismissed'].includes(a.status))}
-function source(id){return state.sources.find(s=>s.id===id)}
-function sourceButton(id){const s=source(id);return s?`<button class="textbtn" data-act="source" data-id="${esc(id)}">依據：${esc(s.name)} ↗</button>`:'<span class="notice">尚未取得依據</span>'}
-function navigate(next,track=true){companionTarget=null;page=names[next]?next:'overview';history.replaceState(null,'','#'+page);render();if(track)api('/api/mutate',{op:'view',data:{page}}).then(r=>{state=r.state}).catch(()=>{});window.scrollTo(0,0)}
-// 本命色：整間經營室（外殼、夥伴、字標那一點）換成這家店自己挑的顏色；沒挑就是橘色
-function applyPersona(){const H=window.CtxViz?.hue?.(state?.map?.persona?.hue);if(!H)return;const r=document.documentElement.style;r.setProperty('--orange',H.accent);r.setProperty('--orange-ink',H.text);r.setProperty('--amber',H.text);r.setProperty('--on-orange',H.on)}
-function render(){
- if(!state)return;applyPersona();const focused=document.activeElement?.id==='companion-input',caret=focused?document.activeElement.selectionStart:null;if($('#companion-input'))companionDraft=$('#companion-input').value;pendingRender=false;if(mapObj){mapCamera={center:mapObj.getCenter(),zoom:mapObj.getZoom()};mapObj.remove();mapObj=null}
- if(!state.setup.complete){if(state.onboarding?.status==='review'||state.preferences?.advanced_inputs){renderSetup();return}renderGrowing();return}
- const prepared=state.actions.filter(x=>x.status==='prepared').length;
- $('#app').innerHTML=`<div class="shell ${state.preferences.density==='compact'?'compact':''} ${companionOpen?'with-companion':''}">
- <aside class="sidebar"><a class="brandmark" href="#overview" data-act="nav" data-page="overview" aria-label="經營室首頁">${buddy('mark')}<span class="wordmark">經營室</span></a><nav aria-label="工作台">${Object.entries(names).map(([k,v])=>`<a class="navitem ${page===k?'active':''}" href="#${k}" data-act="nav" data-page="${k}" ${page===k?'aria-current="page"':''}>${icon(k)}<span>${v}</span></a>`).join('')}</nav><div class="sidebottom">${btn(icon('link')+'<span>連接服務</span>','connections','quiet','aria-label="連接服務"')}${btn(icon('help')+'<span>使用指引</span>','tour','quiet','aria-label="使用指引"')}<span class="sidebar-edition">工作預覽</span></div></aside>
- <div class="workspace"><header class="topbar"><div class="row"><span class="business-monogram">${esc(state.business.name.slice(0,1))}</span><div><span class="business-name">${esc(state.business.name)}</span><span class="business-caption">${state.business.demo?'教學示例':esc(kinds[state.business.kind]||'自己的生意')}</span></div></div><div class="toptools"><span class="saved-dot">本機保存</span>${btn(icon('plus')+'<span>加入材料</span>','material','quiet')}${btn(buddy('mini')+'<span>一起處理'+(prepared?' · '+prepared:'')+'</span>','companion','buddy-toggle',`aria-expanded="${companionOpen}" aria-controls="collaboration"`)}</div></header>
- <main id="content" class="content" tabindex="-1">${({overview:overview,journey:journeyPage,map:mapPage,context:contextPage}[page])()}</main></div><aside id="collaboration" class="collaboration ${companionOpen?'open':''}" aria-label="經營夥伴"></aside></div>`;
- renderDock();
- if(page==='overview')mountMap();else if(cmHandle){cmHandle.destroy();cmHandle=null}
- if(focused){const input=$('#companion-input');input?.focus();input?.setSelectionRange(caret,caret)}
- if(page==='map')initMap();
-}
-function heading(title,sub,actions=''){return `<div class="pagehead"><div><div class="eyebrow">${esc(state.business.name)} / ${esc(names[page])}</div><h1 style="margin-top:.5rem">${title}</h1><p>${sub}</p></div>${actions}</div>`}
-function section(name,html,cls='',extra=''){return `<section class="section ${cls}"><div class="sectionhead"><h2>${name}</h2>${extra}</div>${html}</section>`}
-function focusWidget(){
- const a=current();if(!a)return section('這一輪的重點',`<div class="empty"><h3>已經留下結果，接著看學到什麼。</h3>${btn('一起回看這次成果','companion','primary')}</div>`,'focus');
- const p=state.people.find(p=>p.id===a.person), label={suggested:'待一起釐清',prepared:'內容已準備好',approved:'已選定，待實行'}[a.status];
- return `<section class="section focus"><div class="focus-main"><div class="sectionhead"><span class="eyebrow">這一輪的重點</span><span class="focus-state"><i class="status-dot prepared"></i>${label}</span></div><h2>${esc(a.title)}</h2><p>${esc(a.reason)}</p><div class="focus-foot">${btn(a.drafts.length?'一起看這份內容 '+icon('arrow'):'一起釐清下一步 '+icon('arrow'),'discuss-action','primary',`data-id="${a.id}"`)}${btn('查看做法','action','quiet small',`data-id="${a.id}"`)}</div><div class="focus-source">${sourceButton(a.source)}</div></div><div class="focus-path"><span class="eyebrow">正在推進</span><div class="focus-node">${esc(a.node)}</div><div class="focus-track"><span class="track-point filled"></span><span class="track-line"></span><span class="track-point"></span></div><p>${p?esc(p.name):'目前的做法'}</p><small>${p?esc(p.status):label}</small><span class="focus-index">0${nodes.indexOf(a.node)+1} <small>/ 06</small></span></div></section>`
-}
-function peopleTable(list=state.people.slice(0,5)){return list.length?`<table class="people"><thead><tr><th>對象</th><th>目前狀態</th><th>所在節點</th></tr></thead><tbody>${list.map(p=>`<tr><td><button class="person-open name" data-act="person" data-id="${esc(p.id)}">${esc(p.name)}</button></td><td>${esc(p.status||'待確認')}</td><td>${esc(p.node)}</td></tr>`).join('')}</tbody></table>`:`<div class="empty"><h3>先放入一位你想關注的對象</h3><p>記下一次詢問，就有下一次接續的起點。</p>${btn('新增對象','add-person','small')}</div>`}
-function peopleWidget(){return section('需要關注的對象',peopleTable(),'people-section',btn(icon('plus'),'add-person','iconbtn quiet','aria-label="新增對象"'))}
-function mapWidget(){
- const ps=state.people.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
- const minX=Math.min(...ps.map(p=>p.lng)),maxX=Math.max(...ps.map(p=>p.lng)),minY=Math.min(...ps.map(p=>p.lat)),maxY=Math.max(...ps.map(p=>p.lat));
- const pos=p=>[68+(p.lng-minX)/(maxX-minX||1)*330,182-(p.lat-minY)/(maxY-minY||1)*135];
- return section('街區裡，下一個可能',`<div class="neighborhood-view"><div class="map-preview"><svg viewBox="0 0 500 235" role="img" aria-label="依已記錄經緯度排列的對象示意，非道路地圖"><path class="map-grid" d="M0 45H500M0 95H500M0 145H500M0 195H500M75 0V235M175 0V235M275 0V235M375 0V235M475 0V235"/>${ps.map((p,i)=>{const[x,y]=pos(p);return `<g role="button" tabindex="0" data-act="person" data-id="${p.id}" aria-label="查看 ${esc(p.name)}"><circle class="map-orbit" cx="${x}" cy="${y}" r="${i===0?24:15}"/><circle cx="${x}" cy="${y}" r="5" fill="currentColor"/><text x="${x+12}" y="${y-10}">${esc(p.name)}</text></g>`}).join('')}<text class="compass" x="465" y="25">N ↑</text></svg><div class="map-preview-foot"><span>${ps.length} 位已知位置 · 分布示意</span>${btn('展開地圖 '+icon('arrow'),'nav','small quiet','data-page="map"')}</div></div><div class="map-shortlist"><span class="eyebrow">名單裡的對象</span>${ps.slice(0,3).map(p=>`<button data-act="person" data-id="${p.id}"><strong>${esc(p.name)}</strong><span>${esc(p.status)}</span><p>${esc(p.note)}</p></button>`).join('')}</div></div>`,'map-section')
-}
-function recommended(){const ids=state.business.kind==='local'?['google_places','notion']:state.business.kind==='commerce'?['google_sheets','notion']:['notion','google_places'];return ids.map(id=>catalog.find(p=>p.id===id)).filter(p=>p&&state.connections[p.id]?.status!=='verified')}
-function recommendation(){const p=recommended()[0];return p?`<div class="opportunity"><div><h3>需要時，再多接一點能力</h3><p>${esc(p.benefit)} 目前的工作仍可繼續。</p></div>${btn('看看 '+esc(p.name)+' '+icon('arrow'),'provider','small',`data-id="${p.id}"`)}</div>`:''}
-function eventList(){return state.events.length?`<div class="record-list">${state.events.slice(-6).reverse().map(e=>`<div class="record"><span class="record-time">${date(e.at)}</span><p>${esc(e.text)}${e.action?`<br><button class="textbtn" data-act="action" data-id="${esc(e.action)}">看做法與結果 ↗</button><span class="muted" style="display:block">${esc((state.actions.find(a=>a.id===e.action)?.result||'').slice(0,180))}</span>`:''}${e.source?'<br>'+sourceButton(e.source):''}</p></div>`).join('')}</div>`:'<div class="empty"><p>第一個決定與結果，會留在這裡。</p></div>'}
-function mapPage(){return heading('從熟悉的地方，找到下一個機會','已有位置的對象會出現在地圖。想搜尋附近商家時，再接 Google 商家搜尋。',btn(icon('search')+'搜尋商家','search-places','small'))+`<div class="map-layout"><div class="mapcanvas"><div id="map" aria-label="對象位置地圖"></div><div class="mapfoot" id="map-status">${state.business.demo?'教學示例：店家與位置為情境資料':'位置來自你加入的紀錄'}</div></div><aside class="maplist"><div class="sectionhead"><h2>我的對象</h2>${btn(icon('plus'),'add-person','iconbtn quiet','aria-label="新增對象"')}</div>${state.people.length?state.people.map((p,i)=>`<button class="maprow" data-act="map-person" data-id="${p.id}"><span class="mapbadge">${i+1}</span><div><strong>${esc(p.name)}</strong><small>${esc(p.note||p.address||p.status)}</small>${!Number.isFinite(p.lat)?'<small>尚未加入位置</small>':''}</div></button>`).join(''):'<div class="empty"><p>帶入自己的名單，或先加一位對象。</p>'+btn('匯入有位置的 CSV','import','small')+'</div>'}</aside></div><p class="footer-note">地圖由 OpenStreetMap 提供。關掉網路後仍可使用已存名單；Google 搜尋結果會另列清單並連回 Google 地圖。</p>`}
-function initMap(){
- if(!window.L){$('#map').innerHTML='<div class="empty" style="padding:2rem">地圖元件未載入，名單仍可使用。</div>';return}
- const points=state.people.filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lng));
- const center=points.length?[points.reduce((sum,p)=>sum+p.lat,0)/points.length,points.reduce((sum,p)=>sum+p.lng,0)/points.length]:[25.0525,121.529];
- mapObj=L.map('map',{zoomControl:false}).setView(center,14);
- L.control.zoom({position:'bottomright'}).addTo(mapObj);
- const tile=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors'}).addTo(mapObj);
- tile.on('tileerror',()=>{const s=$('#map-status');if(s)s.textContent='部分圖資尚未載入，已存名單仍可使用。'});
- points.forEach(p=>{const n=state.people.indexOf(p)+1;L.marker([p.lat,p.lng],{icon:L.divIcon({className:'',html:`<span class="place-pin">${n}</span>`,iconSize:[30,30],iconAnchor:[15,15]})}).addTo(mapObj).bindTooltip(esc(p.name)).on('click',()=>openPerson(p.id))});
- if(mapCamera)mapObj.setView(mapCamera.center,mapCamera.zoom);else if(points.length>1)mapObj.fitBounds(points.map(p=>[p.lat,p.lng]),{padding:[55,55],maxZoom:15});
-}
-function contextGraph(){const entries=state.sources.slice(0,5);const xy=[[75,65],[325,65],[60,220],[335,220],[200,260]];return `<svg class="graph" viewBox="0 0 400 290" aria-label="生意與材料的關係">${entries.map((s,i)=>`<line x1="200" y1="140" x2="${xy[i][0]}" y2="${xy[i][1]}"/>`).join('')}<circle class="core" cx="200" cy="140" r="48"/><text class="core-label" x="200" y="140">${esc(state.business.name.slice(0,9))}</text>${entries.map((s,i)=>`<g role="button" tabindex="0" data-act="source" data-id="${s.id}" aria-label="查看 ${esc(s.name)}"><rect class="graph-node" x="${xy[i][0]-50}" y="${xy[i][1]-20}" width="100" height="40" rx="4"/><text x="${xy[i][0]}" y="${xy[i][1]}">${esc(s.name.slice(0,8))}</text></g>`).join('')}</svg>`}
-function contextPage(){return profileOverview()+heading('讓每次理解，都留下來','材料、決定與結果會持續累積。新增資料會更新這個工作台，保留原本的紀錄。',btn(icon('plus')+'加入材料','material','small'))+`<div class="source-grid"><section><div class="sectionhead"><h2>我的材料 <span class="muted">${state.sources.length}</span></h2>${btn('匯入 CSV','import','small quiet')}</div>${state.sources.length?state.sources.map(s=>`<button class="source-row" data-act="source" data-id="${s.id}"><span class="source-icon">${icon('file')}</span><span><span class="source-title">${esc(s.name)}</span><p>${({csv:'資料表',interview:'訪談整理',note:'文字材料'}[s.kind])||'材料'} · ${date(s.at)}${s.demo?' · 教學示例':''}</p></span></button>`).join(''):'<div class="empty"><h3>一份材料，就能開始</h3><p>服務介紹、一段詢問或自己的工作紀錄都可以。</p></div>'}</section><section><div class="sectionhead"><h2>脈絡之間的關係</h2></div>${contextGraph()}<div class="sectionhead" style="margin-top:1.5rem"><h2>決定與結果</h2></div>${eventList()}</section></div>${state.notes.length?'<section class="section" style="margin-top:2rem"><h2>逐步整理的理解</h2>'+state.notes.map(n=>`<article class="record"><div><h3>${esc(n.title)}</h3><p>${esc(n.content)}</p>${sourceButton(n.source)}</div></article>`).join('')+'</section>':''}<div style="margin-top:2rem" class="row wrap">${btn('匯出自己的資料','export','small')}${btn('從 Notion 帶入','provider','small','data-id="notion"')}</div>`}
-function mapModel(){const m=JSON.parse(JSON.stringify(state.map));delete m.revision;delete m.updated;m.say=SAY;m.tactics=packInfo?.tactics||null;m.packed=!!packInfo;if(!m.store)m.store={name:state.business?.name||'你的店',meta:''};return m}
-function sayToChat(text){const ok=()=>toast('已複製，貼到跟助手的對話裡接著說'),no=()=>toast('直接在對話裡說：'+text);try{navigator.clipboard&&navigator.clipboard.writeText?navigator.clipboard.writeText(text).then(ok,no):no()}catch{no()}}
-function mountMap(){if(cmHandle){cmHandle.destroy();cmHandle=null}const el=$('#cm-root');if(el&&state.map&&window.ContextMap)cmHandle=window.ContextMap.render(el,mapModel(),{onSay:sayToChat,brand:!state.setup.complete})}
-function renderGrowing(){
- applyPersona();
- $('#app').innerHTML=`<main class="growing"><header class="growing-head">${buddy('mini','listening')}<p>${state.map?'助手一邊問，這張圖一邊長。要改什麼，都在對話裡說。':'助手正在跟你聊。聊到第一分鐘，這裡會出現你的第一張圖。'}</p></header>${state.map?'<section id="cm-root" aria-label="脈絡地圖"></section>':'<div class="growing-empty"><span class="wordmark">經營室</span>'+buddy('hero','listening')+'<div class="growing-wait" aria-label="等待中"><i></i><i></i><i></i></div></div>'}</main>`;
- mountMap();
-}
-function renderSetup(){
- if(state.onboarding?.status==='review'){renderConversationReview();return}
- const a=state.setup.answers,step=state.setup.step,mode=a.mode||'own',kind=a.kind||'service';let fields='',title='',sub='';
- if(step===0){title='先看懂你的生意';sub='從你手邊有的開始。這一輪不需要申請 API，也不用先有 Notion。';fields=[['own','帶自己的資料','服務介紹、名單或一段客戶詢問，有一份就能開始。'],['sample','先用一間示例生意','跟著教學情境走一次完整流程。'],['empty','目前沒有資料','先說明生意與目標，之後再慢慢補齊。']].map(([v,t,d])=>choice('mode',v,t,d,mode===v)).join('')}
- if(step===1){title='這是什麼樣的生意？';sub=mode==='sample'?'挑一個接近你的情境；所有資料都會清楚標示為示例。':'先告訴我簡單的輪廓。已有材料可以先放進來。';fields=`<label class="field"><span>生意類型</span><select name="kind" id="business-kind">${Object.entries(kinds).map(([k,v])=>`<option value="${k}" ${kind===k?'selected':''}>${v}</option>`).join('')}</select></label><label class="field"><span>生意名稱</span><input name="name" id="business-title" ${mode==='sample'?'readonly':''} required maxlength="80" placeholder="例如：我的工作室" value="${esc(a.name||(mode==='sample'?demoNames[kind]:''))}"></label><label class="field"><span>主要服務地區</span><input name="region" ${mode==='sample'?'readonly':''} maxlength="100" placeholder="例如：台北中山，或線上服務" value="${esc(a.region||(mode==='sample'?'台北市中山區':''))}"></label>${mode==='own'?btn(icon('file')+'先放入一份材料','material','small')+' '+btn('匯入名單或交易 CSV','import','small quiet'):''}${state.sources.length?`<p class="onboarding-note">已有 ${state.sources.length} 份材料保存，隨時可以繼續補。</p>`:''}`}
- if(step===2){title='最近，最想改善什麼？';sub='選一個最接近的情境。這只是起點，助手會再依材料和你一起確認。';fields=[['inquiries','詢問不少，但下一步常常停住','想先把已有詢問接好。'],['new','想找到更多合適的新客或合作','想先整理對象與接觸理由。'],['return','希望客人願意再回來','想從已有的關係與回饋開始。'],['unknown','我還不確定','先看全貌，再和助手一起找方向。']].map(([v,t,d])=>choice('priority',v,t,d,(a.priority||'inquiries')===v)).join('')+`<label class="field" style="margin-top:1.3rem"><span>有想補充的一句話嗎？ <small>選填</small></span><input name="goal" maxlength="300" placeholder="例如：希望平日也有穩定預約" value="${esc(a.goal||'')}"></label>`}
- if(step===3||step===4){title=step===4?'先確認我們理解的是同一間生意':'你的經營室，從這裡開始';sub='先確認這幾件事。下一步會展開總覽、客人旅程、地圖與脈絡。';fields=`<div class="confirmation"><div><span>生意</span><strong>${esc(a.name)}</strong></div><div><span>類型</span><strong>${esc(kinds[a.kind])}</strong></div><div><span>這輪重點</span><strong>${esc({inquiries:'先接住已有詢問',new:'研究合適的新對象',return:'延續既有客戶關係',unknown:'先看懂目前全貌'}[a.priority])}</strong></div><div><span>資料</span><strong>${mode==='sample'?'教學示例・不混入真實資料':state.sources.length?state.sources.length+' 份已加入的材料':'先保存訪談，材料可隨時補'}</strong></div></div><div class="explanation" style="margin-top:1.4rem"><p>目前已能看、選、記。需要商家搜尋或 Notion 時，系統會再帶你連接。</p></div>`}
- if(step===4){const answers=state.interview?.answers||{};fields+=`<details class="profile-records"><summary>回看訪談摘要與待補的地方</summary>${interviewCatalog.map(sec=>`<h3>${esc(sec.title)}</h3>${sec.questions.map(q=>{const a=answers[q.key];return `<article><strong>${esc(q.title)}</strong><p>${esc(a?.text||'尚未取得')}</p><small>${esc({record:'本人提供紀錄',memory:'本人回憶・未對帳',unknown:'尚未取得'}[a?.basis]||'尚未取得')}</small></article>`}).join('')}`).join('')}</details>`}
- $('#app').innerHTML=`<div class="welcome"><aside class="welcomeaside"><div class="brandmark">經營室</div><h1>生意的脈絡，<br>慢慢清楚。</h1><p>把你已經知道的整理起來。<br>看見下一件值得做的事，<br>然後留下它的結果。</p><div class="welcome-companion">${buddy()}<small>帶著你的脈絡，從這裡開始。</small></div></aside><main class="welcomeform" id="content"><div class="formbody"><div class="row between" style="margin-bottom:1rem"><span class="eyebrow">第一次展開 / ${Math.min(step+1,4)} OF 4</span><small>每一步都會保存</small></div><div class="stepsbar">${[0,1,2,3].map(i=>`<span class="${i<=step?'done':''}"></span>`).join('')}</div><div class="formhead"><h1>${title}</h1><p>${sub}</p></div><form data-form="setup" data-step="${step}">${fields}<p class="form-error error" role="alert"></p><div class="formfooter">${step?btn(icon('back')+'上一步','setup-back','quiet'):'<span></span>'}<button class="btn primary" type="submit">${step>=3?'展開我的經營室':'繼續'} ${icon('arrow')}</button></div></form><p class="onboarding-note">資料保存在這個工作資料夾。你隨時可以回來接著做。</p></div></main></div>`;
-}
-function choice(name,value,title,description,checked){return `<label class="choice"><input type="radio" name="${name}" value="${value}" ${checked?'checked':''}><span><strong>${title}</strong><small>${description}</small></span></label>`}
-function renderConversationReview(){
- const o=state.onboarding,p=o.payload;
- $('#app').innerHTML=`<div class="conversation-welcome"><aside><div class="brandmark">經營室</div><span class="eyebrow">從剛才的對話，接著做</span><h1>你已經說過的，<br>都帶過來了。</h1><p>先把這一件事做起來。<br>需要更多脈絡時，我們再一起補。</p><div class="conversation-origin"><small>${esc(p.conversation.assistant)} · ${esc(p.conversation.label)}</small><blockquote>${esc(p.conversation.excerpt)}</blockquote><span class="muted">${p.conversation.basis==='memory'?'本人回憶，尚未對帳':'本人提供的紀錄'}${p.business.demo?' · 教學示例':''}</span></div></aside><main id="content"><form data-form="conversation-review"><span class="eyebrow">確認這次的起點</span><h2>先從這件工作開始。</h2><label class="field"><span>生意名稱</span><input name="name" required maxlength="80" value="${esc(p.business.name)}"></label><label class="field"><span>這次想做到</span><textarea name="goal" required maxlength="300">${esc(p.business.goal)}</textarea></label><div class="handoff-task"><small>${esc(p.business.focus)} · 內容已準備，尚未實行</small><h3>${esc(p.first_task.title)}</h3><p>${esc(p.first_task.reason)}</p><label class="field"><span>第一份內容，可以直接調整</span><textarea name="draft" required maxlength="4000">${esc(p.first_task.drafts[0])}</textarea></label></div>${Object.keys(p.context).length?`<details class="handoff-context"><summary>一起帶入的生意脈絡</summary>${Object.entries(p.context).map(([key,a])=>`<p><strong>${esc(interviewCatalog.flatMap(s=>s.questions).find(q=>q.key===key)?.title||key)}</strong><br>${esc(a.text)}<br><small>${esc({record:'有紀錄',memory:'本人回憶',unknown:'尚未取得'}[a.basis])}</small></p>`).join('')}</details>`:''}<p class="form-error error" role="alert"></p><button type="submit" class="btn primary">理解沒錯，展開這件工作 ${icon('arrow')}</button><p class="onboarding-note">內容會保存在自己的資料夾；這一步不會發出訊息。</p></form></main></div>`;
-}
-function conversationContinuity(){
- const o=state.onboarding;if(o?.status!=='active')return '';
- const active=current(),done=[...state.actions].filter(a=>a.status==='done').sort((a,b)=>(b.updated||'').localeCompare(a.updated||''))[0];
- const followup=done?[...(state.companion?.turns||[])].reverse().find(t=>t.followup?.action===done.id&&t.followup?.result===done.result):null;
- const title=active?active.title:done?'結果留下來了，接著看學到什麼。':'這一輪先停在這裡，可以再選方向。';
- return `<section class="continuity" aria-label="接續目前工作"><div class="continuity-main"><span class="eyebrow">${esc(o.payload.conversation.assistant)} 的對話已接續</span><h2>${esc(title)}</h2><ol class="continuity-steps"><li class="complete">目的已確認</li><li class="${active?.status==='prepared'?'current':active?.status==='approved'||done?'complete':''}">選擇做法</li><li class="${active?.status==='approved'?'current':!active&&done?'complete':''}">留下結果</li><li class="${!active&&done?'current':''}">一起回看</li></ol>${done?`<div class="last-result"><small>${date(done.updated)} 留下的結果</small><p>${esc(done.result)}</p></div>`:`<p class="muted">${active?.status==='approved'?'上次已選好這個做法。做完後留一句實際結果，明天就能接著討論。':esc(active?.reason||'打開準備內容，挑一個適合你的做法。')}</p>`}<div class="row wrap">${active?btn(active.status==='approved'?'記下進度或結果':'看已準備的內容','action','primary',`data-id="${active.id}"`):followup?btn(followup.status==='ready'?'看準備好的下一步':['queued','running'].includes(followup.status)?'查看準備進度':'回看這次準備','preparation-detail','primary',`data-id="${followup.id}"`):btn(done?'幫我準備下一步':'一起重選一個方向',done?'review-result':'discuss-action','primary',`data-id="${done?.id||o.action}"`)}${btn('回看原來的對話','source','quiet small',`data-id="${o.source}"`)}</div></div><aside class="continuity-next"><span class="eyebrow">${o.question?'只補眼前需要的':'理解持續累積'}</span>${o.question?`<h3>${esc(o.question.text)}</h3><p>${esc(o.question.why)}</p>${btn('補充這一題','context-question','small')}`:`<h3>${o.answers.length?'你補充的內容已留下來。':'從這份工作，慢慢補齊脈絡。'}</h3><p>需要聊得更細時，再補一段生意脈絡。原助手可以接著讀取，不必從頭開始。</p>${btn('看生意脈絡','nav','quiet small','data-page="context"')}`}</aside></section>`;
-}
-function openContextQuestion(){
- const q=state.onboarding?.question;if(!q)return;
- openPanel('只補這一題就好',esc(q.why),`<form data-form="context-question"><h3>${esc(q.text)}</h3><input type="hidden" name="question" value="${esc(q.text)}"><div class="context-options">${q.options.map(x=>btn(esc(x),'context-choice','',`data-value="${esc(x)}"`)).join('')}</div><label class="field"><span>選一個接近的，也可以照你的情況補充</span><textarea id="context-answer" name="text" required maxlength="5000"></textarea></label><label class="field"><span>這個回答的依據</span><select name="basis"><option value="memory">我記得的，還沒對帳</option><option value="record">手邊有紀錄可查</option><option value="unknown">還不知道，先記下待確認</option></select></label><p class="form-error error" role="alert"></p><div class="drawerfooter"><button type="submit" class="btn primary">保存，回到工作</button>${btn('現在先做眼前的事','close','quiet')}</div></form>`);
-}
-function openPanel(title,sub,body,wide=false){
- preparationPanelId=null;lastFocus=document.activeElement;panel=title;
- $('#overlay').innerHTML=`<div class="backdrop"><section class="drawer ${wide?'wide':''}" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header class="drawerhead"><div><h2>${title}</h2>${sub?`<p>${sub}</p>`:''}</div>${btn(icon('close'),'close','iconbtn quiet','aria-label="關閉面板"')}</header>${body}</section></div>`;
- requestAnimationFrame(()=>$('.drawer button,.drawer input,.drawer select,.drawer textarea')?.focus());
-}
-function closePanel(){preparationPanelId=null;panel=null;$('#overlay').innerHTML='';if(pendingRender)render();else if(lastFocus?.isConnected)lastFocus.focus()}
-function openSource(id){const s=source(id);if(!s)return;companionTarget={page,selected:id};renderDock();const related=state.actions.filter(a=>a.source===id);openPanel('依據與原始材料',esc(s.name),`${s.demo?'<p class="notice">教學示例，並非真實經營紀錄。</p>':''}<p class="muted" style="margin-bottom:1rem">加入日期：${date(s.at)}</p><div class="source-content">${esc(s.content)}</div>${related.length?'<h3>這份材料支撐的做法</h3>'+related.map(a=>`<div class="actionline"><div>${esc(a.title)}</div>${btn(icon('arrow'),'action','iconbtn quiet',`data-id="${a.id}" aria-label="查看做法"`)}</div>`).join(''):''}`)}
-function openPerson(id){const p=state.people.find(x=>x.id===id);if(!p)return;companionTarget={page,selected:id};renderDock();api('/api/mutate',{op:'view',data:{page,selected:id}}).then(r=>{state=r.state}).catch(()=>{});openPanel(esc(p.name),esc(p.node+' · '+(p.status||'待確認')),`<div class="explanation"><p>${esc(p.note||'這位對象尚未補充互動紀錄。')}</p></div>${p.address?`<p>地址：${esc(p.address)}</p>`:''}${p.phone?`<p>電話：${esc(p.phone)}</p>`:''}${safeURL(p.website)?`<p><a href="${esc(safeURL(p.website))}" target="_blank" rel="noreferrer">查看對方網站 ↗</a></p>`:''}${sourceButton(p.source)}<details style="margin-top:1.5rem"><summary>更新這次互動</summary><form data-form="person-update" data-id="${p.id}"><label class="field"><span>目前走到哪裡</span><select name="node">${nodes.map(n=>`<option ${n===p.node?'selected':''}>${n}</option>`).join('')}</select></label><label class="field"><span>目前狀態</span><input name="status" maxlength="80" value="${esc(p.status)}"></label><label class="field"><span>這次發生了什麼</span><textarea name="note" required placeholder="用一句話記下新的互動，原始紀錄會保留。"></textarea></label><p class="form-error error" role="alert"></p><button class="btn primary" type="submit">保存互動</button></form></details><div class="drawerfooter">${btn('帶著這位對象和助手討論','request-person','primary',`data-id="${p.id}"`)}</div>`)}
-function openAction(id){const a=state.actions.find(x=>x.id===id);if(!a)return;companionTarget={page,selected:id};renderDock();openPanel(esc(a.title),`${esc(a.node)} · ${esc({suggested:'待一起確認',prepared:'已準備',approved:'你已確認',done:'已留下結果',dismissed:'暫不進行'}[a.status])}`,`<div class="explanation"><p>${esc(a.reason)}</p></div>${sourceButton(a.source)}<form data-form="action" data-id="${a.id}">${a.drafts.length?'<h3>選一個接近你的說法</h3>'+a.drafts.map((d,i)=>`<label class="draft"><span class="draft-label"><input type="radio" name="variant" value="${i}" ${i===0?'checked':''}><strong>方向 ${i+1}</strong></span><p>${esc(d)}</p></label>`).join('')+`<label class="field"><span>調成你會說的話</span><textarea name="draft" id="draft-editor">${esc(a.selected_draft||a.drafts[0])}</textarea></label>`:'<p style="margin:1rem 0">請原助手先讀你的材料與目標，提出有依據的下一步；這裡會保留你的選擇與結果。</p>'}<label class="field"><span>實際做完後，留下一句結果</span><textarea name="result" placeholder="例如：已確認對方想先看價格，下週再追蹤。">${esc(a.result||'')}</textarea><small>確認草稿不代表已發送；只有你記下的實際行動才算完成。</small></label><p class="form-error error" role="alert"></p><div class="drawerfooter">${a.drafts.length&&!['done','dismissed'].includes(a.status)?'<button class="btn primary" type="submit" name="status" value="approved">確認這個做法</button>':''}<button class="btn" type="submit" name="status" value="done">${a.status==='done'?'更新結果':'記下實際結果'}</button>${btn('和助手一起改','companion','quiet')}</div></form>`)}
-function openMaterial(){openPanel('加入一份材料','服務介紹、訪談紀錄或客戶詢問，一份就能開始。',`<form data-form="material"><label class="field"><span>材料名稱</span><input name="name" required placeholder="例如：服務介紹" maxlength="160"></label><label class="field"><span>文字內容</span><textarea name="content" required style="min-height:240px" placeholder="貼上你願意帶入的內容；金鑰請放到連接設定。"></textarea></label><p class="form-error error" role="alert"></p><div class="drawerfooter"><button class="btn primary" type="submit">保存材料</button>${btn('改用 CSV 匯入','import')}</div></form>`)}
-async function previewCsv(value){csvDraft=null;$('[data-act=csv-import]').disabled=true;const r=await api('/api/csv/preview',value),keys=Object.keys(r.rows[0]);csvDraft=value;$('#csv-preview').innerHTML=`<h3>${r.rows.length} 筆資料・先看前 5 筆</h3><div class="preview-table"><table><thead><tr>${keys.map(k=>`<th>${esc(({row:'原始列',amount:'金額',date:'日期',time:'時間',name:'名稱',node:'節點',note:'備註',lat:'緯度',lng:'經度',phone:'電話',address:'地址',website:'網站'})[k]||k)}</th>`).join('')}</tr></thead><tbody>${r.rows.slice(0,5).map(row=>`<tr>${keys.map(k=>`<td>${esc(row[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div><p class="muted">確認後才帶入；${state.business.demo?'目前是教學示例，請勿混入真實客戶資料。':'保留原檔內容與來源列數。'}</p>`;$('[data-act=csv-import]').disabled=false}
-function openImport(){csvDraft=null;openPanel('帶入自己的資料','先預覽，再確認；Google Maps Scraper 的 CSV 也可以帶入。',`<label class="field"><span>選擇 CSV</span><input id="csv-file" type="file" accept=".csv,text/csv"><small>名單：名稱／姓名／name，節點、備註、latitude、longitude 選填。交易：日期、金額；有時間欄才可分析時段。請只帶入新增交易，避免不同檔案重複收錄。</small></label><details><summary>看一份可用的格式</summary><pre class="source-content">名稱,節點,備註,latitude,longitude\n我的合作對象,找客,待研究,25.05,121.52\n\n日期,金額\n2026-09-19,1200</pre></details><details><summary>手上只有文字？直接貼上也可以</summary><label class="field"><span>CSV 內容</span><textarea id="csv-text" placeholder="日期,時間,金額"></textarea></label>${btn('預覽這段資料','csv-paste','small')}</details><div id="csv-preview"></div><label class="prepare-choice"><input id="prepare-import" type="checkbox" ${state.companion?.prepare_imports?'checked':''}><span><strong>接著幫我準備下一步</strong><small>交易帶入後，依目前目標整理一件值得做的事。${state.companion?.mode==='native'?'等待原對話接續，不會自行呼叫助手。':'使用我已選的本機助手額度，一批最多準備一次。'}</small></span></label><p class="form-error error" role="alert"></p><div class="drawerfooter"><button class="btn primary" data-act="csv-import" disabled>確認匯入</button></div>`,true)}
-function tableFieldsPreview(table){return `<div class="table-columns">${table.fields.map(f=>`<span>${esc(f.label)}</span>`).join('')}</div>`}
-function observationTables(){const tables=state.observations||[];if(!tables.length)return '';return `<section class="observation-section"><div class="sectionhead"><div><span class="eyebrow">先留下眼前有用的資訊</span><h2>不用整理完所有資料，先記一次。</h2></div></div>${tables.map(t=>`<article class="observation-table"><div><h3>${esc(t.title)}</h3><p>${esc(t.purpose)}</p>${tableFieldsPreview(t)}<small>${t.rows.length?`已有 ${t.rows.length} 筆紀錄`:'尚未開始記錄；空白不會當成 0。'}</small></div><div class="row wrap">${t.status==='active'?btn('記一筆','observation-open','primary',`data-id="${t.id}"`):'<small>已暫停 · 可恢復</small>'}${btn('查看紀錄','observation-open','quiet small',`data-id="${t.id}"`)}</div></article>`).join('')}</section>`}
-function openObservation(id){
- const t=state.observations.find(t=>t.id===id);if(!t)return;
- const fields=t.fields.map(f=>`<label class="field"><span>${esc(f.label)}${f.required?'':' <small>選填</small>'}</span>${f.type==='select'?`<select name="value-${f.key}"><option value="">還沒確認</option>${f.options.map(x=>`<option value="${esc(x)}">${esc(x)}</option>`).join('')}</select>`:f.type==='text'?`<textarea name="value-${f.key}" maxlength="2000" rows="2"></textarea>`:`<input type="${f.type}" name="value-${f.key}" ${f.type==='number'?'step="any" placeholder="未知請留空，實際為零才填 0"':''}>`}</label>`).join('');
- openPanel(esc(t.title),esc(t.purpose),`${sourceButton(t.source)}${t.status==='active'?`<form data-form="observation-row" data-id="${t.id}" data-request="${crypto.randomUUID()}">${fields}<label class="field"><span>這筆資料是</span><select name="basis"><option value="record">這次實際觀察或已有紀錄</option><option value="memory">憑印象補記，還沒對帳</option><option value="unknown">尚未取得，先留線索</option></select></label><p class="form-error error" role="alert"></p><button type="submit" class="btn primary">保存這筆紀錄</button></form>`:'<p class="notice">這張表已暫停，原紀錄仍保留。</p>'}<div class="sectionhead" style="margin-top:2rem"><h3>已記下 ${t.rows.length} 筆</h3>${btn('下載表格','observation-export','small quiet',`data-id="${t.id}"`)}</div>${t.rows.length?`<div class="observation-scroll"><table class="observation-records"><thead><tr>${t.fields.map(f=>`<th>${esc(f.label)}</th>`).join('')}<th>依據</th></tr></thead><tbody>${t.rows.slice(-20).reverse().map(r=>`<tr>${t.fields.map(f=>`<td>${r.values[f.key]===null?'<span class="muted">尚未取得</span>':esc(r.values[f.key])}</td>`).join('')}<td>${sourceButton(r.source)}</td></tr>`).join('')}</tbody></table></div>${btn('一起看記下的內容','observation-discuss','small',`data-id="${t.id}"`)}`:'<p class="muted">保存後會顯示在這裡，明天回來繼續記。</p>'}<div class="drawerfooter">${btn(t.status==='active'?'這張表先暫停':'恢復記錄','observation-toggle','quiet small',`data-id="${t.id}" data-status="${t.status==='active'?'paused':'active'}"`)}</div>`,true);
-}
-function openPurposeConnections(){
- openPanel('現在想省下哪一段工作？','先選目的；已經有資料或工具，就沿用。',`<div class="purpose-connections">${[
- ['帶入已經整理好的材料','如果資料在 Notion，先選一頁帶進來；不用重新打一遍。','notion','provider'],
- ['找附近可能合作的商家','有名單就直接匯入；需要查新的商家時，再連 Google。','google_places','provider'],
- ['把現在的表格拿進來','名單或交易 CSV，先預覽再確認。','','import'],
- ['讓記下的結果接著往下走','選自己的助手，每次留結果先準備一個做法，重要選擇仍由你決定。','','companion-settings']
- ].map(([title,desc,id,act])=>`<button class="purpose-choice" data-act="${act}" ${id?`data-id="${id}"`:''}><strong>${title}</strong><span>${desc}</span>${icon('arrow')}</button>`).join('')}</div><div class="drawerfooter">${btn('其他連接','connections-catalog','quiet small')}${btn('現在先用手邊的資料','close','small')}</div>`);
-}
+  var S = {
+    state: null, pack: null, look: null, lookSig: '', view: '', fails: 0, polling: null, inflight: false, dead: false, retryT: null,
+    cm: null, avatar: null, hero: null, sheet: null, tuner: null, tunerSaved: null, justSaved: null, toastT: null, closeT: null
+  };
 
-function openConnections(){const list=providerFilter==='推薦'?recommended():providerFilter==='全部'?catalog:catalog.filter(p=>p.group===providerFilter);openPanel('需要時，多接一點能力','你可以先用基本版本。依眼前的工作，再選值得連接的服務。',`<div class="connect-filter">${['推薦','全部','找客','生意資料','社群','研究工具'].map(x=>`<button class="chip ${providerFilter===x?'active':''}" data-act="provider-filter" data-filter="${x}">${x}</button>`).join('')}</div>${list.length?list.map(p=>`<article class="provider"><div class="provider-symbol">${esc(p.name[0])}</div><div><h3>${esc(p.name)}</h3><p>${esc(p.benefit)}</p><span class="tag ${p.mode==='keyless'||p.mode==='local'?'ready':''}">${state.connections[p.id]?.status==='verified'?'已驗證':p.mode==='keyless'||p.mode==='local'?'現在可用':p.stage==='guide'?'連接指引':state.connections[p.id]?.status==='stored'?'已存・待驗證':'可連接'}</span></div>${btn('查看 '+icon('arrow'),'provider','small',`data-id="${p.id}"`)}</article>`).join(''):'<div class="empty">目前推薦的連接都已驗證；可以查看全部服務。</div>'}`,true)}
-function openProvider(id){const p=catalog.find(p=>p.id===id);if(!p)return;const status=state.connections[id];openPanel(esc(p.name),esc(p.benefit),`<p class="explanation">${esc(p.fallback)}</p><p class="muted">${esc(p.cost)}</p><ol class="step-list">${p.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>${safeURL(p.url)?`<a class="btn" href="${esc(p.url)}" target="_blank" rel="noreferrer">${icon('external')}前往官方入口</a>`:''}${p.oauth_url?` <a class="textbtn" href="${esc(p.oauth_url)}" target="_blank" rel="noreferrer">用原助手連接 Notion</a>`:''}${p.mode==='key'&&p.stage==='ready'?`<form data-form="connection" data-id="${id}" style="margin-top:1.6rem"><label class="field"><span>${esc(p.secret_label)}</span><input type="password" name="key" required minlength="8" maxlength="4096" autocomplete="off" spellcheck="false" placeholder="只在這裡輸入，不要貼到聊天"><small>保存在這台電腦的私密設定，不進聊天、生意資料或匯出檔。</small></label><p class="form-error error" role="alert"></p><div class="row wrap"><button class="btn primary" type="submit">${id==='notion'?'儲存並檢查':'儲存金鑰'}</button>${status?btn('移除這項連接','forget','quiet',`data-id="${id}"`):''}</div></form>`:''}${status?`<p class="notice">${esc(status.message)} · ${date(status.at)}</p>`:''}<div class="drawerfooter">${id==='google_places'?btn('到地圖搜尋商家','search-places','small'):id==='notion'?btn('選擇要帶入的頁面','notion-pages','small'):p.mode==='local'?btn('匯入 CSV','import','small'):p.mode==='keyless'?btn('打開地圖','go-map','small'):btn('請原助手協助這項連接','request-provider','small',`data-id="${id}"`)}${btn('稍後再接','close','quiet')}</div>`)}
-function openSearch(){if(!state.connections.google_places){openProvider('google_places');return}openPanel('搜尋附近的商家','使用 Places API，這次搜尋會計入自己的 Google 用量。',`<form data-form="places"><label class="field"><span>地區與類型</span><input name="query" required minlength="2" maxlength="200" placeholder="例如：台北中山區花店"></label><button class="btn primary" type="submit">搜尋最多 10 筆</button><p class="form-error error" role="alert"></p></form><div id="places-results"></div>`)}
-function openPreferences(){preferencesDraft=structuredClone(state.preferences);renderPreferences()}
-function renderPreferences(){openPanel('調成自己的首頁','順序會保留下來；每天開啟時不會替你重新排列。',`<div id="preference-list">${preferencesDraft.home.map((k,i)=>`<div class="reorder"><span>${widgetNames[k]}</span>${btn(icon('up'),'widget-up','iconbtn quiet',`data-index="${i}" aria-label="往上移 ${widgetNames[k]}" ${i===0?'disabled':''}`)}${btn(icon('down'),'widget-down','iconbtn quiet',`data-index="${i}" aria-label="往下移 ${widgetNames[k]}" ${i===preferencesDraft.home.length-1?'disabled':''}`)}${btn(icon('close'),'widget-remove','iconbtn quiet',`data-index="${i}" aria-label="隱藏 ${widgetNames[k]}" ${preferencesDraft.home.length===1?'disabled':''}`)}</div>`).join('')}</div><h3>還能加上</h3><div class="row wrap">${Object.keys(widgetNames).filter(k=>!preferencesDraft.home.includes(k)).map(k=>btn('+ '+widgetNames[k],'widget-add','small',`data-kind="${k}"`)).join('')||'<small>目前都已顯示。</small>'}</div><label class="field" style="margin-top:1.5rem"><span>資訊密度</span><select id="density"><option value="comfortable" ${preferencesDraft.density==='comfortable'?'selected':''}>舒適</option><option value="compact" ${preferencesDraft.density==='compact'?'selected':''}>精簡</option></select></label><div class="drawerfooter">${btn('保存我的首頁','preferences-save','primary')}</div>`)}
-function openCompanion(context=null){
- if(context)companionTarget=context;
- if($('#draft-editor'))companionWorkingDraft=$('#draft-editor').value;
- if(!companionTarget){const a=current();companionTarget=page==='overview'&&a?{page,selected:a.id}:{page,selected:null}}
- if(panel)closePanel();companionOpen=true;render();requestAnimationFrame(()=>$('#companion-input')?.focus());
-}
-function buddy(size='',mood='idle'){
- return `<span class="eyes ${size} mood-${mood} sty-${esc(state?.map?.persona?.eyes||'capsule')}" aria-hidden="true"><span class="buddy-gaze"><i></i><i></i></span></span>`
-}
+  /* ── 小工具 ── */
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function el(tag, props, kids) {
+    var n = document.createElement(tag);
+    Object.keys(props || {}).forEach(function (k) {
+      var v = props[k]; if (v == null || v === false) return;
+      if (k === 'text') n.textContent = v;
+      else if (k === 'html') n.innerHTML = v;            // 只給這一份檔裡寫死的字與圖，不放任何資料
+      else if (k.slice(0, 2) === 'on') n.addEventListener(k.slice(2), v);
+      else n.setAttribute(k, v === true ? '' : v);
+    });
+    (kids || []).forEach(function (c) { if (c != null) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return n;
+  }
+  function reduced() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  function nameOf() { return (S.look && S.look.name) || '小二'; }
+  function sig(look) { var o = {}; LOOK_KEYS.forEach(function (k) { o[k] = look ? look[k] : null; }); return JSON.stringify(o); }
+  function lookFrom(map) {
+    var m = map || {}, c = Object.assign({}, m.companion || {}), p = m.persona || {};
+    c.hue = p.hue || c.hue || 'orange'; c.eyes = p.eyes || c.eyes || 'capsule';
+    if (SAFE) { c.skin = 'drawn'; c.photo = null; }
+    return XC ? XC.normalize(c) : { name: c.name || '小二', hue: c.hue };
+  }
+  var ICON = {
+    caret: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5 8 10l3.5-3.5"/></svg>',
+    close: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>'
+  };
 
-function companionContext(){
- const target=companionTarget||{page,selected:page==='overview'?current()?.id:null};
- let item=state.actions.find(x=>x.id===target.selected);if(item)return {...target,kind:'action',item,title:item.title};
- item=state.people.find(x=>x.id===target.selected);if(item)return {...target,kind:'person',item,title:item.name};
- item=state.sources.find(x=>x.id===target.selected);if(item)return {...target,kind:'source',item,title:item.name};
- return {...target,kind:'page',title:target.node?target.node+'節點':names[page]};
-}
-function renderDock(){
- const el=$('#collaboration');if(!el||!state.setup.complete)return;
- if($('#companion-input'))companionDraft=$('#companion-input').value;
- const c=companionContext(),turns=state.companion?.turns||[],busy=turns.find(t=>['queued','running'].includes(t.status));
- const relevant=turns.filter(t=>(t.context.item?.id||null)===(c.selected||null)&&t.context.page===c.page);
- const last=relevant.at(-1),visibleTurns=relevant.filter(t=>!['error','cancelled'].includes(t.status)||t===last),waiting=last?.status==='ready'&&last.reply?.proposal;
- const mood=busy?.status==='running'?'working':waiting?'ready':last?.status==='applied'?'settled':'idle';
- const questions=c.kind==='action'?['把這份內容改短一點','換成我平常會說的語氣','這個做法還缺什麼依據？']:c.kind==='person'?['幫我整理下一步','準備一段適合他的開場','還需要了解他什麼？']:c.kind==='source'?['這份材料對生意有什麼幫助？','整理成一則可留存的理解']:c.page==='map'?['從名單挑一位值得先了解的對象','目前還缺哪些合作資料？']:c.page==='context'?['整理最近材料之間的關係','這次有哪些理解值得留存？']:['現在最值得先做哪件事？','依我的目標重新安排首頁'];
- const readyDraft=c.kind==='action'&&(c.item.selected_draft||c.item.drafts?.[0]);
- const intro=c.kind==='action'?c.item.reason:c.kind==='person'?c.item.note:c.kind==='source'?'這次討論會帶上這份材料的原文。':state.business.goal;
- el.innerHTML=`<header class="collab-header"><div class="collab-identity">${buddy('mini',mood)}<div><span class="collab-title">一起處理</span><small>${busy?.status==='running'?'正在回應':waiting?'等你決定':last?.status==='applied'?'已保存':'帶著脈絡接續'}</small></div></div><div class="row">${btn(icon('clock'),'companion-history','iconbtn quiet','aria-label="查看討論紀錄"')}${btn(icon('tune'),'companion-settings','iconbtn quiet','aria-label="設定夥伴回應方式"')}${btn(icon('close'),'companion-close','iconbtn quiet','aria-label="收起夥伴"')}</div></header>
- <div class="collab-scroll"><div class="buddy-stage">${buddy('',mood)}<span class="buddy-state">${busy?.status==='running'?'正在整理你的問題':waiting?'內容好了，等你看':last?.status==='applied'?'已經放回工作台':'帶著脈絡，一起往下走'}</span></div>
- <div class="context-anchor"><span class="eyebrow">正在一起看</span><div><strong>${esc(c.title)}</strong>${c.selected?btn(icon('close'),'companion-clear','iconbtn quiet','aria-label="改看整體現況"'):''}</div></div>
- ${!relevant.length?`<p class="context-brief">${esc(intro||'先放入一份材料，我們就能從這裡開始。')}</p>${c.item?.source?sourceButton(c.item.source):''}${readyDraft?`<div class="existing-draft"><span class="eyebrow">已備好的內容</span><p>${esc(readyDraft)}</p><div>${btn('先用這一稿','companion-use-existing','small',`data-id="${c.item.id}"`)}${btn('完整做法 ↗','action','small quiet',`data-id="${c.item.id}"`)}</div></div>`:''}`:''}
- <div class="conversation" aria-live="polite" aria-relevant="additions text">${visibleTurns.slice(-3).map(t=>turnMarkup(t)).join('')}</div>
- ${!busy?`<div class="quick-prompts"><span class="eyebrow">可以接著</span>${questions.map(q=>btn(esc(q)+icon('arrow'),'companion-quick','quiet',`data-text="${esc(q)}"`)).join('')}</div>`:''}
- ${busy&&!relevant.some(t=>t.id===busy.id)?'<p class="notice">另一段討論還在處理；可從右上角紀錄查看。</p>':''}
- </div><footer class="collab-composer"><form data-form="request"><label class="sr-only" for="companion-input">和夥伴討論</label><textarea id="companion-input" name="text" rows="2" maxlength="3000" placeholder="想怎麼調整？" ${busy?'disabled':''}>${esc(companionDraft)}</textarea><div class="composer-bottom"><span>${state.companion?.mode!=='native'?'本機助手 · 準備時使用額度':'原對話接續'}</span><button class="send" type="submit" ${busy?'disabled':''} aria-label="送出問題">${icon('up')}</button></div><p class="form-error error" role="alert">${esc(companionNotice)}</p></form></footer>`;
- if(last&&relevant.length){const scroller=$('.collab-scroll');scroller.scrollTop=scroller.scrollHeight}
-}
-function turnMarkup(t){
- const reply=t.reply,p=reply?.proposal;
- const parts=(reply?.message||'').split(/\n\n+/), first=parts.shift()||'', explanation=parts.join('\n\n');
- return `<article class="conversation-turn" data-turn="${t.id}"><p class="my-question">${esc(t.text)}</p>${t.status==='queued'&&state.companion?.mode!=='native'?'<div class="reply-wait"><strong>正在啟動本機助手</strong><p>帶上這次討論的材料與內容；前一件完成後接續。</p></div>':t.status==='queued'?`<div class="reply-wait"><strong>已帶上這一頁的脈絡</strong><p>原對話尚未接續。也可以連接本機助手，直接在這裡回應。</p><div class="row wrap">${btn('連接本機助手','companion-settings','small')}${btn('複製給原對話','companion-copy','quiet small',`data-id="${t.id}"`)}</div>${btn('取消這則問題','companion-cancel','quiet small',`data-id="${t.id}"`)}</div>`:t.status==='running'?`<div class="reply-wait running"><span class="running-line"></span><strong>助手正在回應</strong><p>這次讀取的是你提供的生意資料與眼前這件事。</p>${btn('停止這次回應','companion-cancel','quiet small',`data-id="${t.id}"`)}</div>`:t.status==='error'?`<p class="reply-error">${esc(t.error)}</p>${retryButton(t)}`:t.status==='cancelled'?`<p class="muted">這次討論已停止，原本內容仍保留。</p>${retryButton(t)}`:reply?`<div class="buddy-reply"><p>${esc(first).replace(/\n/g,'<br>')}</p>${explanation?`<details class="reply-more"><summary>看完整說明</summary><p>${esc(explanation).replace(/\n/g,'<br>')}</p></details>`:''}<div class="reply-sources">${reply.sources.map(sourceButton).join('')}</div></div>${p?`<section class="proposal"><div class="proposal-heading"><span>${({draft:'文字調整',action:'下一個做法',note:'留下理解',layout:'首頁調整',observation:'一張可填的小表'})[p.type]}</span><span>${t.status==='applied'?'已採用':t.status==='dismissed'?'這次先不做':'等你決定'}</span></div><h3>${esc(p.title)}</h3>${p.type==='observation'?`<p>${esc(p.table.purpose)}</p>${tableFieldsPreview(p.table)}`:p.type==='layout'?`<ol class="layout-preview">${p.home.map(k=>`<li>${widgetNames[k]}</li>`).join('')}</ol>`:`<p class="proposal-content">${esc(p.content)}</p>`}${p.type==='draft'?`<details><summary>與原稿比較</summary><p class="before-copy">${esc(p.before?.selected_draft||p.before?.drafts?.[0]||'原本尚無草稿')}</p></details>`:''}${t.status==='applied'?'<div class="applied-receipt">'+icon('check')+' 已保存，未對外發送</div>'+ (t.observation_id?btn('填這張小表','observation-open','small',`data-id="${esc(t.observation_id)}"`):'')+ (t.action_id?btn('記下實際結果','action','small',`data-id="${esc(t.action_id)}"`):''):t.status==='dismissed'?'<p class="muted">原有做法保留，這次提案已略過。</p>':`<div class="row wrap">${btn(p.type==='observation'?'用這張小表':'採用這個調整','companion-apply','primary',`data-id="${t.id}"`)}${t.summary||t.followup?btn('一起調整','preparation-adjust','quiet small',`data-id="${t.id}"`):''}${btn('這次先不做','companion-dismiss','quiet small',`data-id="${t.id}"`)}</div>`}</section>`:''}`:''}</article>`
-}
-async function sendCompanion(text){
- const context=companionContext();companionNotice='';
- try{const r=await api('/api/companion/ask',{text,view:{page:context.page,selected:context.selected||null,node:context.node},working_draft:companionWorkingDraft});state=r.state;companionDraft='';if($('#companion-input'))$('#companion-input').value='';companionWorkingDraft='';renderDock()}
- catch(err){companionNotice=err.message;renderDock()}
-}
-async function openAssistantSettings(){
- assistantStatus=await api('/api/companion/status');
- openPanel('讓新資料接著往下走','使用自己已登入的助手，材料與決定都留在這裡。',`
- <label class="prepare-choice"><input type="checkbox" id="auto-prepare" ${state.companion?.prepare_imports?'checked':''}><span><strong>每次帶入新交易，先幫我準備下一步</strong><small>依我的目標準備一件事，再交給我決定。一批最多自動處理一次；工作台開著時才會執行，使用所選助手的額度。</small></span></label>
- <label class="prepare-choice"><input type="checkbox" id="auto-results" ${state.companion?.prepare_results?'checked':''}><span><strong>每次留下實際結果，先幫我準備下一個做法</strong><small>使用所選助手的額度，同一份結果最多自動準備一次；你選定才往下做。</small></span></label>
- <div class="assistant-choice"><strong>用 ChatGPT 帳號接續</strong><p>透過這台電腦已登入的 Codex。沿用自己的訂閱額度，不必準備 API 金鑰。</p>${btn(assistantStatus.codex_available?'使用我的 Codex':'尚未找到 Codex','companion-mode','primary',`data-mode="codex" ${!assistantStatus.codex_available?'disabled':''}`)}</div>
- <div class="assistant-choice"><strong>用 Claude 帳號接續</strong><p>透過這台電腦已登入的 Claude Code，直接在工作台回應與準備內容。</p>${btn(assistantStatus.claude_available?'使用我的 Claude Code':'尚未找到 Claude Code','companion-mode','small',`data-mode="claude" ${!assistantStatus.claude_available?'disabled':''}`)}</div>
- <div class="assistant-choice"><strong>沿用原本的對話</strong><p>先保存材料與問題，等原助手讀取後接續。畫面會顯示等待，不會自行消耗額度。</p>${btn('使用原對話接續','companion-mode','small','data-mode="native"')}</div>
- <p class="muted">選好後，已排隊的工作會一起接續。準備好的內容仍需你採用；不會對外傳訊。程式可用不代表登入完成，第一次回應後才能確認。</p>`)
-}
-function retryButton(t){return !t.runtime?.active&&(t.runtime?.execution?.runner_attempts||0)<2?btn('沿用這份資料再試一次','companion-retry','small',`data-id="${esc(t.id)}"`):''}
-function preparationStrip(){
- const turns=(state.companion?.turns||[]).filter(t=>t.summary||t.followup),active=turns.filter(t=>['queued','running','ready'].includes(t.status));
- if(!turns.length)return `<section class="preparation-empty"><div><strong>資料帶進來，下一步也一起準備。</strong><span>從新交易找一件和「${esc(state.business.goal)}」有關的事。</span></div>${btn('帶入新資料','import','small')}${btn('設定如何接續','companion-settings','small quiet')}</section>`;
- const chosen=[...active,...turns.filter(t=>!active.includes(t)).slice(-1)].slice(0,3);
- return `<section class="preparations" aria-label="新資料與下一步"><div class="preparations-heading"><span class="eyebrow">新資料，接著往下做</span>${btn('查看全部紀錄','companion-history','quiet small')}</div>${chosen.map(t=>{const a=state.actions.find(a=>a.id===t.action_id),label=a?.status==='done'?'已留下結果':a?.status==='approved'?'你已確認 · 等實行':({queued:state.companion?.mode==='native'?'等待原對話接續':'排隊準備中',running:'正在準備',ready:'等你判斷',applied:'已採用 · 等實行',error:'需要接續',cancelled:'已暫停',dismissed:'這次先不做'})[t.status];return `<article class="preparation-row"><span class="prep-status status-${t.status}">${esc(label)}</span><div class="prep-main"><h3>${esc(t.reply?.proposal?.title||t.context.item.name||t.context.item.title)}</h3><p>${t.followup?'依這次結果：'+esc(t.followup.result):`${t.summary.count} 筆交易 · 記錄金額 NT$ ${money(t.summary.amount)} · ${esc(t.summary.from)}${t.summary.to!==t.summary.from?' — '+esc(t.summary.to):''}`}</p>${a?.result?`<small>${esc(a.result)}</small>`:''}</div>${btn(t.status==='ready'?'看準備好的內容':'查看進度','preparation-detail','small',`data-id="${esc(t.id)}"`)}</article>`}).join('')}</section>`
-}
-function openPreparation(id){
- const t=state.companion.turns.find(t=>t.id===id);if(!t)return;const x=t.summary,e=t.runtime?.execution;
- if(t.followup){openPanel('從這次結果，往下一步走',esc(state.business.goal),`<div class="last-result"><small>本人記下的結果</small><p>${esc(t.followup.result)}</p>${sourceButton(t.followup.source)}</div>${turnMarkup(t)}<p class="onboarding-note">準備好的做法由你選擇；沒有新的結果，就不會重複自動準備。</p>`);preparationPanelId=id;return}
- openPanel('這批資料，接著做什麼',esc(state.business.goal),`<div class="intake-proof"><span class="eyebrow">已整理 · ${esc(t.context.item.name)}</span><div class="intake-numbers"><div><strong>${x.count}</strong><span>這批交易筆數</span></div><div><strong>${money(x.amount)}</strong><span>記錄金額 NT$</span></div><div><strong>${x.weekday_afternoon===null?'待補':x.weekday_afternoon.count}</strong><span>平日下午交易筆數</span></div></div><p>${x.weekday_afternoon===null?'部分交易沒有時間，還沒法算平日下午。':'下午採週一至週五 14:00–16:59；這批時段金額 NT$ '+money(x.weekday_afternoon.amount)+'。'}交易筆數不等於來客人數。</p>${sourceButton(x.source)}</div>${turnMarkup(t)}<details class="execution-proof"><summary>這次如何處理</summary><p>先以程式整理交易，再由你選定的助手準備。每批最多自動一次；失敗後可由你再試一次。採用後仍未發送。</p><p>資料列：${x.rows.length<=12?x.rows.join('、'):x.rows[0]+'–'+x.rows.at(-1)}；欄位：日期、金額${x.timed_count?'、時間':''}。沒有核對完整期間，因此不計成長率。</p>${e?`<p>已執行 ${e.runner_attempts} 次；輸入 ${e.usage?.input_tokens??'未取得'}、輸出 ${e.usage?.output_tokens??'未取得'} tokens。用量不等於帳單。回執已保存在自己的經營資料夾。</p>`:'<p>尚無本機執行回執。原对話回覆的用量不會在這裡猜測。</p>'}</details>`.replace('原对話','原對話'));preparationPanelId=id
-}
-function showCompanionHistory(){
- const turns=state.companion?.turns||[];
- openPanel('每次討論，都接得上','採用的內容已存進工作台；仍可回查當時的問題。',turns.length?turns.slice().reverse().map(t=>`<article class="history-entry"><small>${date(t.at)} · ${esc(t.context.item?.name||t.context.item?.title||names[t.context.page]||'經營室')}</small>${turnMarkup(t)}</article>`).join(''):'<div class="empty">從一份內容、一位客人，或一個眼前的問題開始。</div>')
-}
+  /* ── 跟伺服器說話：錯誤帶 status 與伺服器回的內容，白話原因放 message ── */
+  function api(route, data, extra) {
+    var opt = { credentials: 'same-origin', headers: Object.assign({ 'X-Workbench': '1' }, extra || {}) };
+    if (data !== undefined) { opt.method = 'POST'; opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(data); }
+    return fetch(route, opt).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (body) {
+        if (res.ok && body) return body;
+        var e = new Error((body && body.error) || (res.ok ? '經營室回的資料不完整。' : '這次沒有完成，再試一次。'));
+        e.status = res.status; e.body = body; throw e;
+      });
+    }, function () { var e = new Error('連不上經營室。'); e.status = 0; throw e; });
+  }
 
-const tourSteps=[['先認得自己的總覽','這裡放的是你每天想看的內容。用「調整首頁」改順序、加入區塊；偏好會保存。','overview'],['看一件有依據的事','打開今天的重點，先看依據與內容。你可以確認、修改，實際做完再記下結果。','overview'],['客人旅程與地圖','六節點整理目前全貌；地圖放有位置的對象。沒資料的地方保留空白，不猜數字。','journey'],['材料會慢慢長出脈絡','新資料、你的決定與結果留在同一個工作台。需要 Notion 或其他服務時，再從連接設定開始。','context'],['明天，接著用','回到同一個工作資料夾，對原助手說「打開我的經營室」。已填的資料和首頁偏好都會保留。','overview']];
-function openTour(reset=false){if(reset)tourIndex=0;const[t,d,p]=tourSteps[tourIndex];navigate(p);openPanel('第一次走過自己的系統','可以隨時結束，也可以從「使用指引」再看一次。',`<div class="tourbody"><div class="tour-number">0${tourIndex+1}</div><h3>${t}</h3><p>${d}</p></div><div class="drawerfooter">${tourIndex?btn('上一步','tour-back'):''}${btn(tourIndex===4?'開始使用':'下一步','tour-next','primary')}${btn('先自己看看','close','quiet')}</div>`)}
+  /* ── 本命色：外殼只用在字標的點、頭像 ── */
+  function paintAccent(hue) {
+    var H = V && V.hue ? V.hue(hue) : null; if (!H) return;
+    var r = document.documentElement.style;
+    r.setProperty('--accent', H.accent); r.setProperty('--accent-ink', H.text); r.setProperty('--accent-ink-dark', H.darkText || H.text);
+    r.setProperty('--on-accent', H.on); r.setProperty('--accent-soft', H.soft); r.setProperty('--accent-soft-dark', H.darkSoft || H.soft);
+  }
 
-function demoControls(){if(state.business.demo&&state.onboarding)return '<div class="demo-controls"><span>教學示例 · 原對話接續</span><small>材料與結果皆為虛構演練，不代表真實來客。</small></div>';return state.business.demo?`<div class="demo-controls"><label><span>教學情境</span><select id="demo-kind" aria-label="切換示例生意">${Object.entries(demoNames).map(([k,v])=>`<option value="${k}" ${k===state.business.kind?'selected':''}>${v}</option>`).join('')}</select></label><div class="segment" aria-label="使用階段">${[['day1','第一天'],['week3','第三週'],['month3','第三個月']].map(([k,v])=>btn(v,'demo-stage',state.reporting?.stage===k?'selected':'',`data-stage="${k}" aria-pressed="${state.reporting?.stage===k}"`)).join('')}</div><small>虛構資料 · 情境日 ${esc(state.reporting?.as_of||'')}</small></div>`:''}
-function periodControl(){return `<div class="segment" aria-label="比較期間">${[7,14,28].map(n=>btn(n+' 天','period',(state.preferences.period||7)===n?'selected':'',`data-days="${n}" aria-pressed="${(state.preferences.period||7)===n}"`)).join('')}</div>`}
-function stats(){return calculateReport(state,state.preferences.period||7)}
-function pct(v){return new Intl.NumberFormat('zh-TW',{style:'percent',maximumFractionDigits:1}).format(v)}
-function deltaText(d){if(!d)return '<span class="stat-neutral">同期資料待補</span>';if(d.difference===0)return '<span class="stat-neutral">與前期持平</span>';if(d.percent===null)return `<span class="stat-neutral">前期為 0 · 差 ${money(d.difference)}</span>`;return `<span class="${d.difference>=0?'stat-up':'stat-down'}">${d.difference>=0?'↗':'↘'} ${pct(Math.abs(d.percent))}</span><span>較前期</span>`}
-function overview(){
- const r=stats(),note=state.notes[0],widgets={pulse:pulseWidget,revenue:revenueWidget,focus:focusWidget,flows:flowsWidget,work:workWidget,journey:journeyWidget,people:peopleWidget,map:mapWidget};
- return (state.map?'<section id="cm-root" class="cm-home" aria-label="脈絡地圖"></section><div class="cm-divider">今天的工作</div>':'')+demoControls()+heading(state.map?'今天的工作':'經營戰情室',esc(state.business.goal),btn(icon('tune')+'調整首頁','preferences','small quiet'))+
- conversationContinuity()+observationTables()+(!state.onboarding||state.transactions.length||state.companion?.turns?.length?preparationStrip():'')+(state.transactions.length?`<div class="report-bar"><span>${esc(r.current.from)} — ${esc(r.current.to)} <span class="muted">對照 ${esc(r.previous.from)} — ${esc(r.previous.to)}</span></span>${periodControl()}</div>`:'')+
- (note?`<div class="observation"><span class="eyebrow">這輪觀察</span><p>${esc(note.content)}</p><button class="textbtn" data-act="source" data-id="${esc(note.source)}">看依據 ↗</button></div>`:'')+
- `<div class="homegrid warroom kind-${state.business.kind}">${state.preferences.home.map(k=>widgets[k]?.()||'').join('')}</div><p class="footer-note">${state.business.demo?'人物、紀錄與結果均為教學情境，不代表真實經營結果。':'依已加入的紀錄整理；點開數字可回查來源與計算。'}${btn('補充生意脈絡','interview','quiet small')}${btn('連接服務','connections','quiet small')}</p>`
-}
-function pulseWidget(){
- const r=stats(),c=r.current;const cells=[['營收紀錄',c.value===null?'—':money(c.value),'NT$',deltaText(r.delta),'revenue'],['交易筆數',c.count===null?'—':money(c.count),'筆',deltaText(r.countDelta),'count'],['平均每筆',c.aov===null?'—':money(c.aov),'NT$',deltaText(r.aovDelta),'aov'],['回客交易占比',c.repeat===null?'—':pct(c.repeat),'',`<span>${c.known?`${c.returning} / ${c.known} 筆已標記`:'尚未標記新客／回客'}${c.known<c.rows.length?' · '+(c.rows.length-c.known)+' 筆未知':''}</span>`,'repeat']];
- return `<section class="pulse-section" aria-label="期間經營數字">${cells.map(([title,value,unit,sub,key])=>`<button class="stat-cell" data-act="metric" data-key="${key}"><span class="stat-title">${title} ${icon('external')}</span><span class="stat-value"><small>${unit}</small>${value}</span><span class="stat-comparison">${sub}</span></button>`).join('')}<div class="stat-foot">${c.complete?'已確認本期交易完整':'目前為已收錄交易，未確認完整期間'} · ${c.value===null?'等待第一份紀錄':'點數字看計算與原始列'}</div></section>`
-}
-function revenueChart(r){
- const W=680,H=220,L=48,T=16,R=15,B=35;const values=[...r.current.daily,...r.previous.daily].map(d=>d.value).filter(x=>x!==null),max=Math.max(...values,1),min=Math.min(...values,0),range=max-min||1;
- const x=i=>L+i*(W-L-R)/Math.max(r.days-1,1),y=v=>T+(max-v)/range*(H-T-B);
- const line=list=>{let pen=false;return list.map((d,i)=>{if(d.value===null){pen=false;return ''}const p=`${pen?'L':'M'}${x(i).toFixed(1)} ${y(d.value).toFixed(1)}`;pen=true;return p}).join(' ')};
- return `<svg viewBox="0 0 ${W} ${H}" class="sales-chart" role="img" aria-label="每日營收與前期比較；空白代表尚未取得，點資料點看原始交易">${[min,(min+max)/2,max].map(v=>`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" class="chart-rule"/><text x="${L-10}" y="${y(v)+4}" text-anchor="end">${money(v)}</text>`).join('')}<path class="chart-previous" d="${line(r.previous.daily)}"/><path class="chart-current" d="${line(r.current.daily)}"/>${r.current.daily.map((d,i)=>d.value===null?'':`<g tabindex="0" role="button" aria-label="${esc(d.date)} 營收 ${money(d.value)} 元" data-act="metric-day" data-date="${d.date}"><circle cx="${x(i)}" cy="${y(d.value)}" r="11" fill="transparent"/><circle class="chart-dot" cx="${x(i)}" cy="${y(d.value)}" r="3.5"/><title>${d.date} · NT$ ${money(d.value)} · ${d.rows.length} 筆</title></g>`).join('')}${[0,Math.floor((r.days-1)/2),r.days-1].map(i=>`<text x="${x(i)}" y="${H-8}" text-anchor="middle">${r.current.daily[i].date.slice(5).replace('-','/')}</text>`).join('')}</svg>`
-}
-function revenueWidget(){
- const r=stats(),c=r.current,scale=Math.max(1,...r.channels.map(x=>Math.max(x.current,x.previous))),total=c.value;
- return `<section class="section revenue-section"><div class="sectionhead"><div><h2>營收走勢</h2><small>每日加總 · ${r.days} 天對照前 ${r.days} 天</small></div>${btn('查看明細','metric','small quiet','data-key="revenue"')}</div>${total===null?`<div class="empty revenue-empty"><span class="empty-chart" aria-hidden="true">╱ ─ ╱ ─ ─</span><h3>先留下第一週，再比較變化。</h3><p>老闆記得的數字會保存在訪談；帶入交易紀錄後，這裡才開始畫走勢。</p><div class="row wrap">${btn('帶入交易 CSV','import','small')}${btn('先說我記得的','interview','small quiet')}</div></div>`:`<div class="revenue-layout"><div class="chart-pane"><div class="chart-legend"><span><i class="legend-line current"></i>本期</span><span><i class="legend-line previous"></i>前期</span><small>${!c.complete||!r.previous.complete?'未確認完整的日期保留缺口':'每日交易已完整收錄'}</small></div>${revenueChart(r)}</div><div class="channel-pane"><h3>交易從哪裡來</h3><small>依每筆來源標記 · 金額</small>${r.channels.map(ch=>`<button class="channel-row" data-act="metric-channel" data-channel="${esc(ch.name)}"><span>${esc(ch.name)}<strong>${money(ch.current)}</strong></span><div class="channel-tracks"><i style="width:${Math.max(0,ch.current)/scale*100}%"></i><i class="previous" style="width:${Math.max(0,ch.previous)/scale*100}%"></i></div></button>`).join('')}</div></div>`}</section>`
-}
-function workWidget(){
- const groups=[['等你判斷','prepared','內容準備好後，由你採用'],['待你實行','approved','已選定的做法，尚未記結果'],['最近的結果','done','實際記下的反應與學到的事']];
- return `<section class="section work-section"><div class="sectionhead"><h2>今日工作與回音</h2><small>準備 → 判斷 → 實行 → 結果</small></div><div class="work-lanes">${groups.map(([name,status,desc])=>{const items=state.actions.filter(a=>a.status===status);return `<div class="work-lane"><h3><i class="status-dot ${status}"></i>${name}<span>${items.length}</span></h3><small>${desc}</small>${items.length?items.slice(0,4).map(a=>`<button class="work-item" data-act="action" data-id="${esc(a.id)}"><span class="work-node">${esc(a.node)} · ${date(a.updated||a.created)}</span><strong>${esc(a.title)}</strong><p>${esc(status==='done'?a.result:a.reason)}</p><span class="work-open">${status==='done'?'回看結果':'打開處理'} ↗</span></button>`).join(''):'<p class="lane-empty">目前沒有這類工作</p>'}</div>`}).join('')}</div></section>`
-}
-const stepNames={pending:'待進行',review:'等你看',waiting:'等回覆',done:'已留下結果'};
-function flowCard(flow,compact=false){
- const summary=summarizeFlow(flow), measured=flow.steps.find(st=>st.metric)?.metric;
- return `<article class="flow-card ${compact?'compact-flow':''}"><div class="flow-card-title"><span class="flow-node">${esc(flow.node)}</span><h3>${esc(flow.title)}</h3><small>${summary.done} / ${flow.steps.length} 步已留結果</small></div>${measured?`<div class="flow-period">本批進度 · ${esc(measured.start)} — ${esc(measured.end)}</div>`:''}${!compact?`<p class="flow-goal">${esc(flow.goal)}</p>`:''}<div class="flow-steps">${flow.steps.map((st,i)=>{const m=st.metric;return `<div class="flow-step-wrap"><button class="flow-step is-${st.status}" data-act="flow-step" data-flow="${esc(flow.id)}" data-step="${esc(st.id)}"><span class="flow-step-top"><span class="step-number">${st.status==='done'?'✓':String(i+1).padStart(2,'0')}</span><small>${esc(stepNames[st.status]||'待進行')}</small></span><strong>${esc(st.title)}</strong>${m?`<span class="flow-measure" title="指定期間、本批對象的累積進度">${m.value===null?'—':(m.basis==='memory'?'約 ':'')+money(m.value)}<small>${esc(m.unit)}</small></span>`:''}<span class="flow-owner">${esc(st.owner||'一起處理')}</span></button>${i<flow.steps.length-1?'<span class="step-connector" aria-hidden="true">→</span>':''}</div>`}).join('')}</div>${!compact&&summary.edges.length?`<p class="flow-metric-note">數字為本批對象的累積進度；上方狀態是這輪要做的工作。</p>`:''}${!compact&&summary.edges.length?`<div class="flow-edges">${summary.edges.map(e=>`<button data-act="flow-edge" data-flow="${esc(flow.id)}" data-step="${esc(e.to.id)}"><span>${esc(e.from.title)} → ${esc(e.to.title)}</span><strong>${e.rate===null?esc(e.label):pct(e.rate)}</strong><small>${e.loss===null?'先補齊可比較的紀錄':`${e.loss} ${esc(e.from.metric.unit)}尚未走到下一步`}</small></button>`).join('')}</div>`:''}${!compact&&summary.largest?`<div class="flow-observation"><span>本批停留最多的一段</span><strong>${esc(summary.largest.from.title)} → ${esc(summary.largest.to.title)}</strong><small>仍有 ${summary.largest.loss} ${esc(summary.largest.from.metric.unit)}未走到；原因需回看對話，不能直接視為流失。</small></div>`:''}</article>`
-}
-function flowsWidget(){const flows=state.flows||[],flow=flows.find(f=>f.node===state.business.focus)||flows[0];return section('正在推進的實際做法',flow?flowCard(flow)+`<div class="flow-footer">${sourceButton(flow.source)}${btn('看完整六節點流程 '+icon('arrow'),'nav','quiet small','data-page="journey"')}</div>`:`<div class="empty"><h3>把你平常怎麼做，拆成看得見的幾步。</h3><p>先說一位最近客人的故事，助手就有材料和你整理流程。</p>${btn('補上我的做法','interview','small')}</div>`,'flows-section')}
-function leakLine(d){return d.leak?`<span class="node-leak">一個月約漏 <b>${money(d.leak.amount)}</b> 元<em>${d.leak.basis==='record'?'依紀錄':'情境估'}</em></span>`:''}
-function journeyGraphic(){const diag=state.business.nodes||{};return `<div class="journey journey-summary">${nodes.map((n,i)=>{const d=diag[n]||{},skip=d.relevant===false,flows=(state.flows||[]).filter(f=>f.node===n),steps=flows.flatMap(f=>f.steps),waiting=steps.filter(s=>s.status==='review').length;return `<button class="node ${n===state.business.focus?'current':''} ${skip?'is-later':''}" data-act="node" data-node="${n}"><span class="node-dot">${i+1}</span><strong>${n}</strong><small>${skip?'先不做'+(d.why?'・'+esc(d.why):''):flows[0]?esc(flows[0].title):d.why?esc(d.why):'做法待一起整理'}</small>${skip?'':leakLine(d)+`<span class="node-work">${waiting?waiting+' 步等你看':flows.length?flows.length+' 條做法':'待補脈絡'}</span><span class="node-mini-track">${steps.map(s=>`<i class="${s.status}"></i>`).join('')}</span>`}</button>`}).join('')}</div>`}
-function diagnosisDetail(n){const d=(state.business.nodes||{})[n];if(!d)return '';if(d.relevant===false)return `<p class="diag-skip">這一格先不做${d.why?'：'+esc(d.why):'。'}</p>`;const l=d.leak;return `${d.why?`<p class="diag-why">${esc(d.why)}</p>`:''}${l?`<div class="diag-leak"><p class="diag-amount">一個月約漏 <b>${money(l.amount)}</b> 元・${l.basis==='record'?'依紀錄':'情境估'}</p><p class="diag-formula">${esc(l.formula)}</p><dl>${l.inputs.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>${l.note?`<p class="diag-note">${esc(l.note)}</p>`:''}</div>`:''}`}
-function journeyWidget(){return section('六個節點，持續推進',journeyGraphic(),'journey-section',btn('展開流程','nav','quiet small','data-page="journey"'))}
-function journeyPage(){const flows=state.flows||[];return heading('客人怎麼走，事情怎麼做','點一步看依據、準備內容與結果；保留每個節點的做法。',btn('補充我的流程','interview','small'))+`<div class="journey-wide">${journeyGraphic()}</div><div class="journey-switch segment">${btn('實際做法','journey-view',journeyView==='flows'?'selected':'','data-view="flows"')}${btn('客人名單','journey-view',journeyView==='people'?'selected':'','data-view="people"')}</div>${journeyView==='people'?peopleTable(state.people):flows.length?`<div class="all-flows">${flows.map(f=>flowCard(f,false)).join('')}</div>`:flowsWidget()}<section class="section"><div class="sectionhead"><h2>最近留下的結果</h2></div>${eventList()}</section>`}
-function openNode(n){companionTarget={page,selected:null,node:n};renderDock();const flows=(state.flows||[]).filter(f=>f.node===n);openPanel(n+'｜實際做法','每一步都有準備內容、負責方式與結果。',diagnosisDetail(n)+flows.map(f=>flowCard(f)).join('')+`<h3 class="spaced">這一段的對象</h3>`+peopleTable(state.people.filter(p=>p.node===n))+`<div class="drawerfooter">${btn('一起判斷這個節點','companion','primary')}</div>`,true)}
-function openFlowStep(flowId,stepId){const f=state.flows.find(f=>f.id===flowId),st=f?.steps.find(x=>x.id===stepId);if(!st)return;companionTarget={page,selected:st.action||null,node:f.node};renderDock();const m=st.metric;openPanel(esc(st.title),esc(f.node+' / '+f.title),`<div class="step-detail-status"><span>${esc(stepNames[st.status])}</span><span>${esc(st.owner)}</span></div><p class="step-detail-copy">${esc(st.detail)}</p>${sourceButton(st.source)}${m?`<div class="metric-proof"><strong>${m.value===null?'還沒法算':money(m.value)+' '+esc(m.unit)}</strong><p>同一批對象 · ${esc(m.start)} — ${esc(m.end)}</p><small>${m.basis==='record'?`來源第 ${m.row} 列，${esc(m.field)} 欄`:'尚未取得可核對的紀錄'}</small>${sourceButton(m.source)}</div>`:''}${st.action&&state.actions.some(a=>a.id===st.action)?btn('查看已準備的內容','action','primary',`data-id="${esc(st.action)}"`):''}${st.result?`<div class="explanation spaced"><h3>最近留下的結果</h3><p>${esc(st.result)}</p></div>`:''}<form data-form="flow-step" data-flow="${esc(f.id)}" data-step="${esc(st.id)}"><label class="field"><span>更新這一步</span><select name="status">${Object.entries(stepNames).map(([k,v])=>`<option value="${k}" ${st.status===k?'selected':''}>${v}</option>`).join('')}</select></label><label class="field"><span>這次實際發生了什麼？</span><textarea name="result" required placeholder="寫下反應、結果或仍在等待的事，原始材料會保留。"></textarea></label><p class="form-error error" role="alert"></p><button class="btn" type="submit">保存這一步</button></form>`)}
-function openFlowEdge(flowId,stepId){const f=state.flows.find(f=>f.id===flowId),e=summarizeFlow(f).edges.find(e=>e.to.id===stepId);openPanel('這段流程怎麼算',esc(e.from.title+' → '+e.to.title),`<div class="metric-proof"><strong>${e.rate===null?esc(e.label):pct(e.rate)}</strong><p>${e.rate===null?'要有同批、同期間、同單位的實際紀錄才能算。':`${e.to.metric.value} ÷ ${e.from.metric.value}。前後是同一批對象的累積進度；還沒走到不代表永遠失去。`}</p><p>${esc(e.from.metric.cohort)} · ${esc(e.from.metric.start)} — ${esc(e.from.metric.end)}</p>${[e.from,e.to].map(s=>`<p>${esc(s.title)}：${s.metric.value===null?'尚未取得':s.metric.value+' '+esc(s.metric.unit)}，第 ${s.metric.row} 列／${esc(s.metric.field)} 欄</p>${sourceButton(s.metric.source)}`).join('')}</div>`)}
-function openMetric(key='revenue',filter={}){const r=stats(),c=r.current;let rows=c.rows,title='營收紀錄',formula='加總所選期間交易表的 amount（金額）欄。';if(key==='count'){title='交易筆數';formula='所選期間已收錄交易的列數；不是獨立客戶人數。'}if(key==='aov'){title='平均每筆';formula='所選期間金額加總 ÷ 已收錄交易筆數；不是利潤。'}if(key==='repeat'){title='回客交易占比';formula=`標記 returning 的 ${c.returning} 筆 ÷ 有 new／returning 標記的 ${c.known} 筆。未標記的 ${c.rows.length-c.known} 筆不進分母；不是客戶留存率。`}if(filter.day){rows=rows.filter(t=>t.date===filter.day);title=filter.day+' 的交易'}if(filter.channel){rows=rows.filter(t=>(t.channel||'未分類')===filter.channel);title=filter.channel+' 的交易'}openPanel(title,c.from+' — '+c.to,`<p class="explanation">${esc(formula)}</p><p>${c.complete?'本期有完整期間聲明。':'本期未確認完整，未收錄不代表沒有交易。'}${r.previous.complete?'前期也有完整期間聲明。':'前期未確認完整，暫不宣稱成長率。'}</p>${r.coverage.map(x=>sourceButton(x.source)).join('')}${btn('核對交易完整期間','coverage','small quiet')}<div class="preview-table spaced"><table class="people"><thead><tr><th>日期</th><th>金額</th><th>來源／原始列</th></tr></thead><tbody>${rows.slice(0,25).map(t=>`<tr><td>${esc(t.date)}</td><td>${money(t.amount)}</td><td>${sourceButton(t.source)}<small>第 ${t.row} 列 · ${esc(t.channel||'未分類')}</small></td></tr>`).join('')}</tbody></table></div><small>${rows.length} 筆${rows.length>25?'，這裡列出前 25 筆；原始材料保留全表':''}</small>`,true)}
-function profileOverview(){const answers=state.interview?.answers||{},known=Object.values(answers).filter(a=>a.text&&a.basis!=='unknown'),unknown=interviewCatalog.flatMap(s=>s.questions).filter(q=>!answers[q.key]?.text||answers[q.key].basis==='unknown');return `<section class="section profile-section"><div class="sectionhead"><div><h2>你的生意輪廓</h2><small>${known.length} 個回答已有內容 · ${unknown.length} 個尚待補充；這是脈絡紀錄，不是經營評分。</small></div>${btn('接著聊細一點','interview','small')}</div><div class="profile-topics">${interviewCatalog.map((sec,i)=>{const filled=sec.questions.filter(q=>answers[q.key]?.text&&answers[q.key].basis!=='unknown').length;return `<button data-act="interview-section" data-index="${i}"><span>${String(i+1).padStart(2,'0')}</span><strong>${esc(sec.title)}</strong><small>${filled} / ${sec.questions.length} 題已有內容</small><div class="topic-progress">${sec.questions.map(q=>`<i class="${answers[q.key]?.basis||''}"></i>`).join('')}</div></button>`}).join('')}</div><details class="profile-records"><summary>看已留下的原話與依據</summary>${interviewCatalog.map(sec=>`<h3>${esc(sec.title)}</h3>${sec.questions.map(q=>{const a=answers[q.key];return a?`<article><strong>${esc(q.title)}</strong><small>${esc({record:'本人提供紀錄',memory:'本人回憶・未對帳',unknown:'尚未取得'}[a.basis])}${a.confirmed?'':' · 助手預填，待確認'}</small><p>${esc(a.text||'尚未取得')}</p>${sourceButton(a.source)}</article>`:''}).join('')}`).join('')}</details></section>`}
-function interviewFields(index){const sec=interviewCatalog[index],answers=state.interview?.answers||{};return sec.questions.map(q=>{const a=answers[q.key]||{};return `<fieldset class="interview-question"><legend>${esc(q.title)}</legend><p>${esc(q.hint)}</p>${q.options.length?`<div class="answer-hints">${q.options.map(v=>btn(esc(v),'answer-hint','small',`data-key="${q.key}" data-value="${esc(v)}"`)).join('')}</div>`:''}<label class="sr-only" for="answer-${q.key}">${esc(q.title)}</label><textarea id="answer-${q.key}" name="${q.key}" maxlength="5000" placeholder="照你的經驗說；一個具體例子比一句概括更有用。">${esc(a.text||'')}</textarea><div class="answer-basis" role="group" aria-label="這份回答的依據">${[['record','有紀錄可查'],['memory','我記得的'],['unknown','還不知道']].map(([k,v])=>`<label><input type="radio" name="basis-${q.key}" value="${k}" ${(a.basis||'memory')===k?'checked':''}>${v}</label>`).join('')}</div>${a.source?`<small>${a.confirmed?'上次已保存':'助手依材料預填，請確認或修改'}</small>${sourceButton(a.source)}`:''}</fieldset>`}).join('')}
-function interviewForm(index,setup=false){const sec=interviewCatalog[index];return `<form data-form="interview" data-index="${index}" data-setup="${setup}"><div class="interview-progress">${interviewCatalog.map((x,i)=>`<span class="${i===index?'current':i<index?'past':''}" title="${esc(x.title)}"></span>`).join('')}</div><div class="interview-intro"><span class="eyebrow">${index+1} / ${interviewCatalog.length} · ${setup?'建立生意脈絡':'補充生意脈絡'}</span><h2>${esc(sec.title)}</h2><p>${esc(sec.intro)}</p></div>${interviewFields(index)}<p class="form-error error" role="alert"></p><div class="drawerfooter">${index?`<button class="btn quiet" type="submit" name="move" value="back">保存，上一段</button>`:''}<button class="btn" type="submit" name="move" value="save">先保存</button><button class="btn primary" type="submit" name="move" value="next">${index===interviewCatalog.length-1?'整理好了，看全貌':'保存，下一段'} ${icon('arrow')}</button></div><p class="onboarding-note">有材料先放材料；沒有就留下腦中的內容。暫時不知道的題目可選「還不知道」，之後再補。</p></form>`}
-function openInterview(index=state.interview?.section||0){openPanel('把生意聊細一點','一次一小段。你說過的會留著，有紀錄與憑印象的會分開。',`<div class="row wrap">${btn('先放入材料','material','small quiet')}${btn('帶入資料表','import','small quiet')}</div>`+interviewForm(index),true)}
-function renderDeepSetup(){const index=state.interview?.section||0;$('#app').innerHTML=`<div class="interview-onboarding"><aside><div class="brandmark">經營室</div><h1>把你腦中的生意，<br>一段段留下來。</h1><p>資料、經驗、還不知道的事，<br>都會成為這套系統的脈絡。</p><ol>${interviewCatalog.map((x,i)=>`<li class="${i===index?'current':''}">${esc(x.title)}</li>`).join('')}</ol><div class="row wrap">${btn('放入一份材料','material','small')}${btn('匯入 CSV','import','small quiet')}</div></aside><main id="content"><div class="deep-form">${interviewForm(index,true)}</div></main></div>`}
+  /* ════ 頂欄 ════ */
+  function buildTopbar() {
+    var bar = el('header', { class: 'tb', id: 'tb' }, [
+      el('div', { class: 'tb-in' }, [
+        el('span', { class: 'tb-brand', role: 'img', 'aria-label': '小二 by N', html: WORDMARK }),
+        el('span', { class: 'tb-sep', 'aria-hidden': 'true' }),
+        el('button', { type: 'button', class: 'tb-me', id: 'tb-me', 'aria-haspopup': 'dialog', onclick: function () { openTuner(); } }, [
+          el('span', { class: 'tb-face', id: 'tb-face' }),
+          el('span', { class: 'tb-name', id: 'tb-name', text: '小二' }),
+          el('span', { class: 'tb-caret', html: ICON.caret })
+        ]),
+        el('span', { class: 'tb-fill' }),
+        el('span', { class: 'tb-store', id: 'tb-store' })
+      ])
+    ]);
+    return bar;
+  }
+  function paintTopbar() {
+    var look = S.look, name = nameOf();
+    $('#tb-name').textContent = name;
+    $('#tb-me').setAttribute('aria-label', name + '，按一下幫' + name + '換個樣子');
+    $('#tb-me').title = '幫' + name + '換個樣子';
+    if (XC && look) {
+      if (!S.avatar) S.avatar = XC.mount($('#tb-face'), look, { size: 28, expr: 'idle', label: name });
+      else S.avatar.update(look);
+    }
+    var store = S.state && S.state.map && S.state.map.store, sn = store && store.name;
+    $('#tb-store').textContent = sn || '';
+    document.title = sn ? sn + '・經營室' : '經營室・小二';
+  }
 
-document.addEventListener('click',async e=>{
- if(e.target.classList.contains('backdrop')){closePanel();return}
- const b=e.target.closest('[data-act]');if(!b)return;e.preventDefault();const a=b.dataset.act;
- try{
- if(['material','import'].includes(a)){
- const f=$('form[data-form=interview]');if(f){const d=Object.fromEntries(new FormData(f)),index=Number(f.dataset.index),answers={};for(const q of interviewCatalog[index].questions)answers[q.key]={text:d[q.key]||'',basis:d['basis-'+q.key]};const r=await api('/api/mutate',{op:'interview',data:{section:index,answers,advance:false}});state=r.state}
- }
- if(!state.setup.complete&&['material','import'].includes(a)){const setup=$('form[data-form=setup]');if(setup){const r=await api('/api/mutate',{op:'setup',data:{answers:Object.fromEntries(new FormData(setup)),step:state.setup.step}});state=r.state}}
- if(a==='period'){await change('period',{days:Number(b.dataset.days)})}
- else if(a==='demo-stage'){await change('demo',{kind:state.business.kind,stage:b.dataset.stage});companionTarget=null;render()}
- else if(a==='coverage'){const r=stats();openPanel('核對完整期間','先確認已收錄全部交易，才比較前後期。',`<form data-form="coverage"><label class="field"><span>開始日期</span><input type="date" name="start" required value="${r.previous.from}"></label><label class="field"><span>結束日期</span><input type="date" name="end" required value="${r.current.to}"></label><label class="choice"><input type="checkbox" name="confirmed" required><span>這段期間的交易已全部收錄，沒有遺漏；休業或沒有交易的日子也已確認。</span></label><p class="form-error error" role="alert"></p><button class="btn primary" type="submit">保存完整期間</button></form>`)}
- else if(a==='metric')openMetric(b.dataset.key);
- else if(a==='metric-day')openMetric('revenue',{day:b.dataset.date});
- else if(a==='metric-channel')openMetric('revenue',{channel:b.dataset.channel});
- else if(a==='journey-view'){journeyView=b.dataset.view;render()}
- else if(a==='flow-step')openFlowStep(b.dataset.flow,b.dataset.step);
- else if(a==='flow-edge')openFlowEdge(b.dataset.flow,b.dataset.step);
- else if(a==='interview')openInterview();
- else if(a==='observation-open')openObservation(b.dataset.id);
- else if(a==='observation-toggle'){await change('observation-status',{id:b.dataset.id,status:b.dataset.status});openObservation(b.dataset.id)}
- else if(a==='observation-export'){const r=await api('/api/observation/export',{id:b.dataset.id});const url=URL.createObjectURL(new Blob([r.content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=r.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
- else if(a==='observation-discuss'){const t=state.observations.find(x=>x.id===b.dataset.id);openCompanion({page:'overview',selected:t.rows.at(-1)?.source||t.source});await sendCompanion('請帶著我的目標，看「'+t.title+'」目前留下的紀錄，說明還缺什麼，或準備一個小到可以做的下一步。')}
- else if(a==='review-result'){b.disabled=true;const r=await api('/api/companion/review-result',{id:b.dataset.id});state=r.state;render();const t=[...state.companion.turns].reverse().find(x=>x.followup?.action===b.dataset.id);if(t)openPreparation(t.id)}
- else if(a==='context-question')openContextQuestion();
- else if(a==='context-choice'){const input=$('#context-answer');input.value=b.dataset.value;input.focus()}
- else if(a==='interview-section')openInterview(Number(b.dataset.index));
- else if(a==='answer-hint'){const input=$('#answer-'+b.dataset.key);if(input){input.value+=(input.value?'、':'')+b.dataset.value;input.focus()}}
- else if(a==='close')closePanel();
- else if(a==='nav'){closePanel();navigate(b.dataset.page)}
- else if(a==='setup-back'){const f=$('form[data-form=setup]'),answers=Object.fromEntries(new FormData(f));await change('setup',{answers,step:Math.max(0,state.setup.step-1)})}
- else if(a==='source')openSource(b.dataset.id);
- else if(a==='action')openAction(b.dataset.id);
- else if(a==='person'||a==='map-person'){const p=state.people.find(x=>x.id===b.dataset.id);if(a==='map-person'&&p&&Number.isFinite(p.lat)&&mapObj)mapObj.flyTo([p.lat,p.lng],16,{animate:!matchMedia('(prefers-reduced-motion: reduce)').matches,duration:.55});openPerson(b.dataset.id)}
- else if(a==='node')openNode(b.dataset.node);
- else if(a==='add-person')openPanel('加一位對象','先留下一個你想接續的關係。',`<form data-form="person"><label class="field"><span>名稱</span><input name="name" required maxlength="120"></label><label class="field"><span>所在節點</span><select name="node">${nodes.map(n=>`<option>${n}</option>`).join('')}</select></label><label class="field"><span>目前知道什麼？</span><textarea name="note"></textarea></label><p class="form-error error" role="alert"></p><button class="btn primary" type="submit">保存對象</button></form>`);
- else if(a==='material')openMaterial();
- else if(a==='import')openImport();
- else if(a==='csv-paste'){const content=$('#csv-text').value;if(new Blob([content]).size>700000)throw Error('請先分成較小的一批。');await previewCsv({name:'貼上的交易資料.csv',content})}
- else if(a==='csv-import'){if(!csvDraft)return;b.disabled=true;const r=await api('/api/csv/import',{...csvDraft,prepare:$('#prepare-import')?.checked===true});state=r.state;closePanel();render();toast('資料已保存；首頁可看這次整理與接下來的工作。')}
- else if(a==='connections')openPurposeConnections();
- else if(a==='connections-catalog'){providerFilter='推薦';openConnections()}
- else if(a==='provider-filter'){providerFilter=b.dataset.filter;openConnections()}
- else if(a==='provider')openProvider(b.dataset.id);
- else if(a==='forget'){const r=await api('/api/connection/forget',{id:b.dataset.id});state=r.state;render();openProvider(b.dataset.id);toast('連接已移除，既有材料仍保留。')}
- else if(a==='go-map'){closePanel();navigate('map')}
- else if(a==='search-places')openSearch();
- else if(a==='notion-pages'){b.disabled=true;const r=await api('/api/notion/pages',{});openPanel('選擇一份 Notion 材料','只讀取你已授權的頁面；目前匯入頂層文字。',r.items.length?r.items.map(p=>`<div class="actionline"><div>${esc(p.name)}</div>${btn('帶入文字','notion-import','small',`data-id="${p.id}"`)}</div>`).join('')+(r.has_more?'<p class="notice">目前列出前 30 頁；更多頁面請由原助手搜尋。</p>':''):'<p>目前沒有可讀頁面。請在 Notion 把頁面加入這個 integration 的連線。</p>')}
- else if(a==='notion-import'){b.disabled=true;const r=await api('/api/notion/import',{id:b.dataset.id});state=r.state;closePanel();navigate('context');toast(r.partial?'已匯入頂層文字；子頁面或更多內容仍需補讀。':'Notion 文字已帶入自己的脈絡。')}
- else if(a==='preferences')openPreferences();
- else if(a.startsWith('widget-')){const i=Number(b.dataset.index),h=preferencesDraft.home;if(a==='widget-up'&&i>0)[h[i-1],h[i]]=[h[i],h[i-1]];if(a==='widget-down'&&i<h.length-1)[h[i+1],h[i]]=[h[i],h[i+1]];if(a==='widget-remove'&&h.length>1)h.splice(i,1);if(a==='widget-add'&&!h.includes(b.dataset.kind))h.push(b.dataset.kind);renderPreferences()}
- else if(a==='preferences-save'){preferencesDraft.density=$('#density').value;await change('preferences',preferencesDraft);closePanel();toast('自己的首頁已保存。')}
- else if(a==='companion')openCompanion();
- else if(a==='companion-close'){companionOpen=false;render()}
- else if(a==='companion-clear'){companionTarget={page,selected:null};companionWorkingDraft='';renderDock()}
- else if(a==='discuss-action'){companionTarget={page,selected:b.dataset.id};openCompanion()}
- else if(a==='companion-quick'){await sendCompanion(b.dataset.text)}
- else if(a==='companion-settings'){await openAssistantSettings()}
- else if(a==='companion-mode'){const r=await api('/api/companion/configure',{mode:b.dataset.mode,prepare_imports:$('#auto-prepare')?.checked===true,prepare_results:$('#auto-results')?.checked===true});state=r.state;closePanel();companionNotice='';render();toast(b.dataset.mode!=='native'?'已連接選定的助手；待處理工作會依序接續。':'已切回原對話接續。')}
- else if(a==='companion-apply'){b.disabled=true;const r=await api('/api/companion/apply',{id:b.dataset.id});state=r.state;const shown=preparationPanelId;render();if(shown)openPreparation(shown);toast('改動已存進工作台。')}
- else if(a==='preparation-adjust'){const t=state.companion.turns.find(t=>t.id===b.dataset.id);openCompanion({page:'overview',selected:t.summary?.source||t.followup?.source})}
- else if(a==='companion-dismiss'){const r=await api('/api/companion/dismiss',{id:b.dataset.id});state=r.state;closePanel();render();toast('已留下你的選擇，這次先不做。')}
- else if(a==='preparation-detail')openPreparation(b.dataset.id);
- else if(a==='companion-retry'){const r=await api('/api/companion/retry',{id:b.dataset.id});state=r.state;closePanel();render();toast('沿用同一份材料再試一次。')}
- else if(a==='companion-cancel'){const r=await api('/api/companion/cancel',{id:b.dataset.id});state=r.state;if(preparationPanelId)openPreparation(preparationPanelId);renderDock()}
- else if(a==='companion-copy'){const t=(state.companion?.turns||[]).find(x=>x.id===b.dataset.id);if(t){await navigator.clipboard.writeText(`請讀取經營室的最新 context，回應討論 ${t.id}：「${t.text}」。用 agent.py publish 的 reply 發布有來源的回覆與提案，等我採用。`);toast('已複製接續指令，貼到原對話即可。')}}
- else if(a==='companion-history'){showCompanionHistory()}
- else if(a==='companion-use-existing'){const item=state.actions.find(x=>x.id===b.dataset.id);await change('action',{id:item.id,status:'approved',draft:item.selected_draft||item.drafts[0],result:item.result});toast('已確認這個說法，尚未對外發送。')}
+  /* ════ 主畫面 ════ */
+  function shell() {
+    var app = $('#app'); app.textContent = '';
+    app.appendChild(buildTopbar());
+    app.appendChild(el('div', { class: 'xs-net', id: 'net', role: 'status', hidden: true }, [
+      el('i', { 'aria-hidden': 'true' }), el('span', { id: 'net-t' }),
+      el('button', { type: 'button', class: 'xs-btn xs-sm', id: 'net-b', hidden: true, onclick: function () { sayOpen(); } }, ['複製這句'])
+    ]));
+    app.appendChild(el('main', { id: 'main', class: 'xs-main', tabindex: '-1' }));
+    window.addEventListener('scroll', function () { $('#tb').classList.toggle('scrolled', window.scrollY > 4); }, { passive: true });
+  }
+  function setView(view, build) {
+    var main = $('#main');
+    if (S.view === view) return false;
+    if (S.cm) { S.cm.destroy(); S.cm = null; }
+    if (S.hero) { S.hero.destroy(); S.hero = null; }
+    main.textContent = ''; main.className = 'xs-main v-' + view;
+    build(main);
+    if (S.view && !reduced()) { main.classList.add('xs-swap'); main.addEventListener('animationend', function () { main.classList.remove('xs-swap'); }, { once: true }); }
+    S.view = view;
+    return true;
+  }
 
+  /* 載入中（index.html 先放一份一樣的，程式接手後換成這一份） */
+  function viewLoading() {
+    setView('loading', function (main) {
+      main.appendChild(el('section', { class: 'xs-screen', 'aria-busy': 'true' }, [
+        el('div', { class: 'xs-screen-face', id: 'hero-face' }),
+        el('p', { class: 'xs-screen-lead', text: '正在打開經營室…' })
+      ]));
+      if (XC) S.hero = XC.mount($('#hero-face'), S.look || {}, { size: 72, expr: 'think', label: nameOf() });
+    });
+  }
 
- else if(a==='tour')openTour(true);
- else if(a==='tour-next'){if(tourIndex<4){tourIndex++;openTour()}else closePanel()}
- else if(a==='tour-back'){tourIndex=Math.max(0,tourIndex-1);openTour()}
- else if(a==='reopen')openPanel('明天怎麼打開？','回到同一個生意，不用重新開始。',`<ol class="step-list"><li>在原助手選擇這個經營資料夾。</li><li>說「打開我的經營室」，或點兩下資料夾裡的「打開經營室.command」。</li><li>工作台會檢查是否已啟動，沿用原資料與首頁偏好。</li></ol><p>服務關閉後，舊網址可能不再可用。請用啟動入口重新打開。</p>`);
- else if(a==='routine'){await change('request',{text:'請依我的營業時間和目前做法，和我討論一條日常例行。先說明何時、讀什麼、準備什麼、哪些等我確認；只有實際建立並回讀排程後才算啟用。'});openCompanion();toast('已記下例行需求，尚未建立排程。')}
- else if(a==='request-provider'){const p=catalog.find(x=>x.id===b.dataset.id);await change('request',{text:`請協助連接「${p.name}」。先檢查原助手是否已有可用能力，再按官方指引設定。憑證請由我在系統或官方介面輸入，不放聊天。參考：${p.url}`});openCompanion();toast('已存好連接需求；回原對話說「接著看工作台」。')}
- else if(a==='request-person')openCompanion({page,selected:b.dataset.id});
- else if(a==='transactions')openMetric();
- else if(a==='legacy-transactions'){openPanel('營收從哪裡來','以下為已匯入的逐筆明細，未估算缺失交易。',`<table class="people"><thead><tr><th>日期</th><th>金額</th><th>來源列</th></tr></thead><tbody>${state.transactions.map(t=>`<tr><td>${esc(t.date)}</td><td>${money(t.amount)}</td><td>${sourceButton(t.source)} 第 ${t.row} 列</td></tr>`).join('')}</tbody></table>`,true)}
- else if(a==='export'){const r=await api('/api/export');const blob=new Blob([JSON.stringify(r,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='我的經營資料.json';link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
- }catch(err){toast(err.message);b.disabled=false}
-});
-document.addEventListener('submit',async e=>{
- const f=e.target;if(!f.dataset.form)return;e.preventDefault();const d=Object.fromEntries(new FormData(f));const submit=e.submitter;if(submit)submit.disabled=true;
- try{
- switch(f.dataset.form){
- case 'conversation-review':await change('onboarding-confirm',d);navigate('overview');toast('目的與第一件工作已接續，隨時可以調整。');break;
- case 'observation-row':{const t=state.observations.find(t=>t.id===f.dataset.id),values=Object.fromEntries(t.fields.map(x=>[x.key,d['value-'+x.key]]));await change('observation-row',{id:t.id,request_id:f.dataset.request,values,basis:d.basis});openObservation(t.id);toast('已保存到自己的小表；原助手也能接著讀取。');break}
- case 'context-question':await change('onboarding-answer',d);closePanel();toast('補充已保存，原助手下次接續可讀取。');break;
- case 'setup':{const step=Number(f.dataset.step);if(step>=3){await change('start',{});navigate('overview');toast('已展開自己的經營室。先看看今天的重點。')}else{if(step===2&&!d.goal)d.goal={inquiries:'先把已有詢問接好',new:'找到更多適合的新對象',return:'讓既有客人願意再回來',unknown:'先看懂自己的獲客現況'}[d.priority];await change('setup',{answers:d,step:step+1})}break}
- case 'interview':{
- const index=Number(f.dataset.index),answers={};
- for(const q of interviewCatalog[index].questions)answers[q.key]={text:d[q.key]||'',basis:d['basis-'+q.key]};
- const advance=submit.value==='next',isSetup=f.dataset.setup==='true';
- await change('interview',{section:index,answers,advance});
- if(advance&&index===interviewCatalog.length-1){if(isSetup){await change('setup',{step:4,answers:{}})}else{closePanel();navigate('context')}}
- else if(isSetup){if(submit.value==='back')await change('interview',{section:Math.max(0,index-1),answers:{}});render()}
- else openInterview(submit.value==='back'?Math.max(0,index-1):advance?index+1:index);
- if(isSetup)window.scrollTo(0,0);toast('回答已保存，原話與依據會留在生意脈絡。');break}
- case 'coverage':await change('coverage',{...d,confirmed:d.confirmed==='on'});closePanel();toast('完整期間已記下，符合條件的比較已更新。');break;
- case 'flow-step':await change('flow-step',{flow:f.dataset.flow,step:f.dataset.step,...d});openFlowStep(f.dataset.flow,f.dataset.step);toast('這一步的結果已保存。');break;
- case 'material':await change('material',d);closePanel();toast('材料已保存，可隨時補充與回查。');break;
- case 'person':await change('person',d);closePanel();toast('對象已加入，沒有發送任何訊息。');break;
- case 'person-update':await change('person-update',{...d,id:f.dataset.id});openPerson(f.dataset.id);toast('互動已保存，原始依據仍保留。');break;
- case 'action':await change('action',{...d,id:f.dataset.id,status:submit.value});openAction(f.dataset.id);toast(submit.value==='done'?(state.companion?.prepare_results?'結果已保存，下一步已排入準備。':'實際結果已記下。'):'做法已確認，尚未代表已發送。');break;
- case 'request':await sendCompanion(d.text);break;
- case 'connection':{
- const id=f.dataset.id,key=f.elements.key.value;f.elements.key.value='';const r=await api('/api/connection/save',{id,key});state=r.state;render();if(id==='notion'){await api('/api/notion/test',{});state=(await api('/api/state')).state}openProvider(id);toast(id==='notion'?'已驗證 Notion；接著選擇可讀的頁面。':'金鑰已存好，成功搜尋後才會標示已驗證。');break}
- case 'places':{const r=await api('/api/places',{query:d.query});$('#places-results').innerHTML=`<h3>找到 ${r.items.length} 筆資料</h3><p class="muted" style="display:flex;align-items:center;gap:1rem;margin:1rem 0"><img src="/vendor/google-maps.svg" height="19" alt="Google Maps">${date(r.at)}</p>${r.items.map(p=>`<article class="actionline"><div><strong>${esc(p.name)}</strong><small>${esc(p.address)}</small></div>${safeURL(p.url)?`<a class="btn small" target="_blank" rel="noreferrer" href="${esc(p.url)}">Google 地圖 ↗</a>`:''}</article>`).join('')||'<p>這次沒有結果，試著調整地區或類型。</p>'}`;break}
- }
- }catch(err){const el=$('.form-error',f);if(el)el.textContent=err.message;else toast(err.message)}finally{if(submit?.isConnected)submit.disabled=false}
-});
-document.addEventListener('input',e=>{if(e.target.id==='companion-input')companionDraft=e.target.value});
-document.addEventListener('change',async e=>{
- const el=e.target;
- if(el.id==='demo-kind'){try{await change('demo',{kind:el.value,stage:state.reporting?.stage||'week3'});companionTarget=null;render()}catch(err){toast(err.message)}}
- if(el.id==='business-kind'&&state.setup.answers.mode==='sample')$('#business-title').value=demoNames[el.value];
- if(el.name==='variant'){const a=state.actions.find(a=>a.id===$('form[data-form=action]').dataset.id);$('#draft-editor').value=a.drafts[Number(el.value)]}
- if(el.id==='density'&&preferencesDraft)preferencesDraft.density=el.value;
- if(el.id==='csv-file'&&el.files[0]){try{if(el.files[0].size>700000)throw Error('請先選 700 KB 以內的 CSV。');await previewCsv({name:el.files[0].name,content:await el.files[0].text()})}catch(err){csvDraft=null;$('.drawer .form-error').textContent=err.message;$('[data-act=csv-import]').disabled=true}}
-});
-document.addEventListener('keydown',e=>{if(e.isComposing||e.keyCode===229)return;if(e.key==='Escape'){if(panel)closePanel();else if(companionOpen){companionOpen=false;render();$('[data-act=companion]')?.focus()}}if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)&&e.target.id==='companion-input'){e.preventDefault();e.target.form.requestSubmit()}if(e.key==='Enter'&&e.target.matches('svg [role=button]'))e.target.dispatchEvent(new MouseEvent('click',{bubbles:true}));if(e.key==='Tab'&&panel){const list=$$('button:not([disabled]),a[href],input,textarea,select,[tabindex="0"]',$('.drawer')).filter(x=>x.offsetParent!==null),first=list[0],last=list.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}});
-document.addEventListener('pointermove',e=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;const buddy=$('.buddy-stage .buddy-gaze');if(!buddy)return;const r=buddy.getBoundingClientRect();buddy.style.setProperty('--look-x',Math.max(-2,Math.min(2,(e.clientX-r.x)/100))+'px');buddy.style.setProperty('--look-y',Math.max(-1.5,Math.min(1.5,(e.clientY-r.y)/130))+'px')},{passive:true});
-window.addEventListener('hashchange',()=>{const p=location.hash.slice(1);if(names[p])navigate(p)});
-async function boot(){try{if(location.hash.startsWith('#token=')){const token=location.hash.slice(7);history.replaceState(null,'','#overview');await api('/api/session',{}, {Authorization:'Bearer '+token})}const r=await api('/api/state');state=r.state;catalog=r.catalog;packInfo=r.pack||null;interviewCatalog=r.interview_catalog||[];page=names[location.hash.slice(1)]?location.hash.slice(1):'overview';render();setInterval(async()=>{if(document.hidden||(!state.setup.complete&&document.activeElement?.matches('input,textarea,select')))return;try{const r=await api('/api/state');const newPack=JSON.stringify(r.pack||null)!==JSON.stringify(packInfo);packInfo=r.pack||null;if(r.state.revision!==state.revision||newPack){state=r.state;if(!panel)render();else{pendingRender=true;renderDock();if(preparationPanelId){const scroll=$('.drawer').scrollTop;openPreparation(preparationPanelId);$('.drawer').scrollTop=scroll}}}}catch{}},3500)}catch(err){$('#app').innerHTML=`<main class="loading"><div class="brandmark">經營室</div><p>${esc(err.message)}</p><p class="muted">在原助手的工作資料夾說「打開我的經營室」。</p></main>`}}
-boot();
+  /* 錯誤：一行白話＋下一步。連不上時每幾秒自己再試，接上了就回到經營室，不用他按 */
+  var OPEN_LINE = '打開我的經營室';
+  function sayOpen() {
+    var name = nameOf();
+    copy(OPEN_LINE, function () { toast('複製好了，貼到跟' + name + '的對話送出。'); }, function () { copySheet(OPEN_LINE, name); });
+  }
+  function viewError(err) {
+    var name = nameOf(), gone = err && err.status === 401, closed = err && err.status === 0;
+    var title = gone ? '這一頁要重新打開' : closed ? '經營室沒有開著' : '經營室打不開';
+    var why = gone ? '這個分頁沒帶到經營室的鑰匙。回到對話跟' + name + '說「' + OPEN_LINE + '」，右邊就會換成能用的那一頁。'
+      : closed ? '放經營室的小程式停了，或電腦剛睡醒。跟' + name + '說「' + OPEN_LINE + '」；接上了，這一頁會自己回來。'
+        : (err && err.message) || '這次沒有讀到你的經營室。';
+    S.view = ''; stopPolling();
+    setView('error', function (main) {
+      main.appendChild(el('section', { class: 'xs-screen', role: 'alert' }, [
+        el('div', { class: 'xs-screen-face', id: 'hero-face' }),
+        el('h1', { class: 'xs-screen-title', id: 'err-title' }, [title, el('i', { class: 'xs-dot', 'aria-hidden': 'true' })]),
+        el('p', { class: 'xs-screen-lead', id: 'err-lead', text: why }),
+        el('div', { class: 'xs-screen-acts', id: 'err-acts' }, [
+          gone || closed ? el('button', { type: 'button', class: 'xs-btn', onclick: sayOpen }, ['複製「' + OPEN_LINE + '」']) : null,
+          gone || closed ? null : el('button', { type: 'button', class: 'xs-btn', onclick: function () { viewLoading(); start(); } }, ['再試一次'])
+        ])
+      ]));
+      if (XC) { try { S.hero = XC.mount($('#hero-face'), S.look || {}, { size: 96, expr: 'think', label: name }); } catch (e) { S.hero = null; } }
+    });
+    if (gone || closed) retrySoon(); else fixHelp();
+  }
+  /* 畫面打不開、而且是程式被改過（pack.integrity）：錯誤畫面自己給「還原成原版」。
+     這一段只用這一份檔裡的小工具（不靠可能就是被改壞的 contextmap.js、companion.js）；連 app.js 都壞了，index.html 裡有一段最小的救援。
+     讀狀態走 load()：沒有 cookie 的瀏覽器（companion.js、ctxviz.js 壞了，一開機就到這裡，還沒換過鑰匙）先用網址或這個網址記著的鑰匙換一次 */
+  function fixHelp() {
+    load().then(function (r) {
+      var it = r && r.pack && r.pack.integrity, name = nameOf();
+      if (!it || it.ok !== false || it.checked === false || S.view !== 'error') return;
+      var title = $('#err-title'), lead = $('#err-lead'), acts = $('#err-acts'); if (!lead || !acts) return;
+      title.firstChild.textContent = '經營室的程式被改過';
+      acts.textContent = '';
+      if (it.can_restore === false) { lead.textContent = '這一份還原不了：跟' + name + '說「重新安裝經營室」。你的經營資料不會動。'; return; }
+      lead.textContent = '畫面才打不開。按一下換回安裝時的樣子；你的經營資料不會動。';
+      acts.appendChild(el('button', { type: 'button', class: 'xs-btn', 'data-restore': '', onclick: function (e) { fixNow(e.currentTarget); } }, ['還原成原版']));
+    }, function () { });
+  }
+  function fixNow(btn) {
+    var lead = $('#err-lead'), name = nameOf();
+    btn.disabled = true; lead.textContent = '正在還原…';
+    api('/api/integrity/restore', {}).then(function (r) {
+      if (r.failed && r.failed.length) { lead.textContent = '有 ' + r.failed.length + ' 個檔還原不了；跟' + name + '說「重新安裝經營室」。你的經營資料沒有動。'; return; }
+      lead.textContent = r.restarting ? '還原好了，經營室重開一下，幾秒內自己接回來。' : '還原好了，馬上重新整理。';
+      setTimeout(function () { comeBack(20); }, r.restarting ? 1500 : 300);
+    }, function (e) { btn.disabled = false; lead.textContent = '這次沒有還原：' + e.message; });
+  }
+  /* 還原之後重新整理（換回來的 js 要重新讀）；經營室在重開就等它回來 */
+  function comeBack(n) {
+    api('/api/state').then(function () { location.reload(); }, function () { if (n > 0) setTimeout(function () { comeBack(n - 1); }, 1000); else location.reload(); });
+  }
+  /* 錯誤畫面上安靜地再試：伺服器重開沿用同一個埠與鑰匙，接上就換回經營室 */
+  function retrySoon() {
+    clearTimeout(S.retryT);
+    S.retryT = setTimeout(function () {
+      if (S.view !== 'error') return;
+      if (document.hidden) { retrySoon(); return; }
+      load().then(function (r) { S.fails = 0; accept(r); startPolling(); }, function () { retrySoon(); });
+    }, 3000);
+  }
+
+  /* 還沒訪談：小二在等你回到對話 */
+  function viewFirst() {
+    var name = nameOf();
+    var built = setView('first', function (main) {
+      main.appendChild(el('section', { class: 'xs-first', 'aria-labelledby': 'first-title' }, [
+        el('div', { class: 'xs-first-face', id: 'hero-face' }),
+        el('h1', { class: 'xs-first-title', id: 'first-title' }, [el('span', { id: 'first-name' }), el('i', { class: 'xs-dot', 'aria-hidden': 'true' })]),
+        el('p', { class: 'xs-first-lead', id: 'first-lead' }),
+        el('ol', { class: 'xs-first-steps', 'aria-label': '接下來會長出來的' }, [
+          step('01', '聊你的店', '你賣什麼、客人是誰、哪一位最讓你滿意。'),
+          step('02', '看見要複製的成功', '那一型客人從哪來、為什麼留下、附近還有幾家像他。'),
+          step('03', '每天三件事', '開門前排好，做了按一下，打烊時看結果。')
+        ]),
+        el('p', { class: 'xs-first-tag', text: '讓客人來，也讓客人回' })
+      ]));
+      if (XC) S.hero = XC.mount($('#hero-face'), S.look, { size: 176, expr: 'listen', label: name });
+    });
+    if (!built && S.hero) S.hero.update(S.look);
+    $('#first-name').textContent = name === '小二' ? '我是你的小二' : '我是' + name + '，你的小二';
+    $('#first-lead').textContent = '回到對話，回答' + (name === '小二' ? '我' : name) + '的問題就好。每答兩、三題，這裡就多長一點；第一張圖大約一分鐘後出現。';
+  }
+  function step(no, t, d) { return el('li', {}, [el('b', { text: no }), el('strong', { text: t }), el('span', { text: d })]); }
+
+  /* 經營室：ContextMap 畫；之後每次只換有變的塊 */
+  function viewRoom() {
+    if (!CM) { viewError(new Error('經營室的畫面沒有載入完整，重新整理一次。')); return; }
+    setView('room', function (main) { main.appendChild(el('section', { id: 'cm-root', class: 'xs-room', 'aria-label': '經營室' })); });
+    var host = $('#cm-root');
+    try {
+      S.cm = CM.render(host, mapModel(), {
+        brand: false, onSay: say, onAct: act, onCompanion: function () { openTuner(); },
+        companion: S.look, pack: S.pack, safe: SAFE,
+        onLayout: saveLayout, onModule: moduleCall, onRestore: restoreIntegrity
+      });
+    } catch (e) { S.cm = null; viewError(new Error('經營室的畫面畫不出來，重新整理一次。')); }
+  }
+  function mapModel() {
+    var m = JSON.parse(JSON.stringify(S.state.map));
+    delete m.revision; delete m.updated;
+    m.tactics = S.pack ? S.pack.tactics || null : null;
+    if (S.pack && S.pack.installed) m.packed = true;   // 沒裝就不帶 packed（v14 起 pack 一定在，課程包裝了沒看 pack.installed）
+    if (!m.store) m.store = { name: '你的店', meta: '' };
+    return m;
+  }
+
+  /* 收到一份新的狀態：顏色、頂欄、主畫面 */
+  function accept(r) {
+    S.state = r.state; S.pack = r.pack || null;
+    var look = lookFrom(S.state.map), s = sig(look), changed = s !== S.lookSig;
+    S.look = look; S.lookSig = s;
+    if (changed) paintAccent(look.hue);
+    paintTopbar();
+    if (S.state.map) viewRoom(); else viewFirst();
+  }
+
+  /* ════ 鑰匙：網址上的 #token= 留著，也記一份在這個網址的瀏覽器儲存；cookie 不見就自己重換 ════ */
+  var KEY = 'xiaoer.key';
+  function keys() {
+    var out = [], m = location.hash.match(/(?:^#|&)token=([^&]+)/);
+    if (m) { try { out.push(decodeURIComponent(m[1])); } catch (e) { } }
+    try { var k = window.localStorage.getItem(KEY); if (k && out.indexOf(k) < 0) out.push(k); } catch (e) { }
+    return out;
+  }
+  function remember(k) { try { window.localStorage.setItem(KEY, k); } catch (e) { } }
+  function session() {
+    var list = keys();
+    var tryOne = function (i) {
+      if (i >= list.length) { var e = new Error('這一頁沒帶到鑰匙。'); e.status = 401; return Promise.reject(e); }
+      return api('/api/session', {}, { Authorization: 'Bearer ' + list[i] }).then(function (r) { remember(list[i]); return r; },
+        function (e) { return e.status === 401 ? tryOne(i + 1) : Promise.reject(e); });
+    };
+    return tryOne(0);
+  }
+  /* 讀一次狀態；cookie 認不得（側邊瀏覽器重建過）就用鑰匙重換一次再讀 */
+  function load() {
+    return api('/api/state').catch(function (e) {
+      if (e.status !== 401) throw e;
+      return session().then(function () { return api('/api/state'); });
+    });
+  }
+
+  /* ════ 每秒讀一次；連不上三次才說，接回來自己收起 ════ */
+  function start() {
+    var first = /(?:^#|&)token=/.test(location.hash) ? session().catch(function () { }) : Promise.resolve();
+    return first.then(load).then(function (r) {
+      S.fails = 0; S.dead = false; accept(r); startPolling();
+    }).catch(viewError);
+  }
+  function startPolling() {
+    stopPolling();
+    S.polling = setInterval(tick, POLL_MS);
+  }
+  function stopPolling() { if (S.polling) clearInterval(S.polling); S.polling = null; }
+  function tick() {
+    if (document.hidden || S.inflight) return;
+    if (S.dead && Date.now() < S.dead) return;          // 鑰匙換不回來：每 5 秒再試一次，不要每秒打
+    S.inflight = true;
+    load().then(function (r) {
+      S.inflight = false; S.dead = false;
+      if (S.fails) { S.fails = 0; net(null); }
+      var newPack = JSON.stringify(r.pack || null) !== JSON.stringify(S.pack);
+      if (!S.state || r.state.revision !== S.state.revision || newPack) accept(r);
+    }, function (e) {
+      S.inflight = false;
+      var name = nameOf();
+      if (e.status === 401) {
+        S.dead = Date.now() + 5000; S.fails++;
+        net('這一頁要重新打開。跟' + name + '說「' + OPEN_LINE + '」。', true, true); return;
+      }
+      S.fails++;
+      if (S.fails >= 8) net('經營室沒有回應。跟' + name + '說「' + OPEN_LINE + '」，接上了會自己更新。', true, true);
+      else if (S.fails >= 3) net('跟經營室的連線斷了。畫面停在剛剛的樣子，接回來會自己更新。');
+    });
+  }
+  function net(text, stuck, withCopy) {
+    var n = $('#net'); if (!n) return;
+    if (!text) { n.hidden = true; return; }
+    $('#net-t').textContent = text; n.classList.toggle('xs-stuck', !!stuck);
+    $('#net-b').hidden = !withCopy;
+    if (n.hidden) { n.hidden = false; n.classList.remove('in'); void n.offsetWidth; n.classList.add('in'); }
+  }
+  document.addEventListener('visibilitychange', function () { if (!document.hidden && S.polling) tick(); });
+
+  /* ════ 今天的按鈕：寫回資料夾；回來的 today 先放進 state，輪詢再把整份換新 ════ */
+  function act(body) {
+    return api('/api/map/act', body).then(function (r) {
+      if (S.state && S.state.map && r.today) S.state.map.today = r.today;
+      return r;
+    }, function (e) {
+      throw new Error(e.status === 0 ? '連不上經營室，再按一次試試。' : e.message);
+    });
+  }
+
+  /* ════ v14：版面、模組按鈕、還原。伺服器回了整份狀態就直接換上，沒回就重讀一次；
+     路由還沒有（404）、連不上：錯誤帶 status 往回丟，經營室自己講一句白話（畫面不會壞） ════ */
+  function took(r) {
+    if (r && r.state && r.state.map) accept({ state: r.state, pack: 'pack' in r ? r.pack : S.pack });
+    else refresh();
+    return r;
+  }
+  function failed(e) {
+    if (e.status === 409) refresh();
+    var x = new Error(e.status === 0 ? '連不上經營室' : e.message); x.status = e.status; throw x;
+  }
+  function saveLayout(layout) { return api('/api/layout', { layout: layout }).then(took, failed); }
+  function moduleCall(kind, body) {
+    if (['act', 'revert', 'pause'].indexOf(kind) < 0) return Promise.reject(new Error('不認得的按鈕。'));
+    return api('/api/module/' + kind, body).then(took, failed);
+  }
+  function restoreIntegrity() { return api('/api/integrity/restore', {}).then(took, failed); }
+
+  /* ════ 「跟小二說」：複製一句話，貼回對話 ════ */
+  function copy(text, ok, no) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext !== false) navigator.clipboard.writeText(text).then(ok, no);
+      else no();
+    } catch (e) { no(); }
+  }
+  /* 經營室裡要貼回對話的那一句（「這不對」、回答「想問你」）：複製好了，頂欄那裡浮一句回音 */
+  function say(text) {
+    var name = nameOf();
+    copy(text, function () { toast('複製好了，貼到跟' + name + '的對話送出。'); }, function () { copySheet(text, name); });
+  }
+  /* 調整器下方那三句：name＝名字格裡現在的名字（可能還沒存），提示也用它。
+     複製好了回 true，調整器把「複製好了」寫在那三句上面；複製不了就在面板頂端攤開那一句，回 false */
+  function sayInTuner(text, name) {
+    name = name || nameOf();
+    return new Promise(function (done) {
+      copy(text, function () { done(true); }, function () { tunerCopy(text, name); done(false); });
+    });
+  }
+  function copySheet(text, name) {
+    name = name || nameOf();
+    var area = el('textarea', { class: 'xs-copy-area', readonly: true, rows: '4', 'aria-label': '要貼給' + name + '的話' });
+    area.value = text;
+    var card = el('div', { class: 'xs-sheet-card xs-sm' }, [
+      el('header', { class: 'xs-sheet-head' }, [
+        el('div', {}, [el('p', { class: 'xs-eyebrow', text: '跟' + name + '說' }), el('h2', { id: 'sheet-title' }, ['自己複製這一句', el('i', { class: 'xs-dot', 'aria-hidden': 'true' })])]),
+        el('button', { type: 'button', class: 'xs-icon-btn', 'aria-label': '關上', html: ICON.close, onclick: closeSheet })
+      ]),
+      el('div', { class: 'xs-sheet-pad' }, [
+        el('p', { class: 'xs-muted', text: '這台電腦不讓網頁自動複製。字已經選好了，按複製鍵，再貼到跟' + name + '的對話裡。' }),
+        area,
+        el('div', { class: 'xs-row' }, [el('button', { type: 'button', class: 'xs-btn', onclick: closeSheet }, ['好了'])])
+      ])
+    ]);
+    openSheet(card, { onClose: null });
+    setTimeout(function () { area.focus(); area.select(); }, 30);
+  }
+
+  /* 調整器開著時複製不了：不關面板，在面板頂端攤開那一句讓他自己選 */
+  function tunerCopy(text, name) {
+    var card = S.sheet && S.sheet.card; if (!card) return;
+    var old = card.querySelector('.xs-tn-copy'); if (old) old.remove();
+    name = name || nameOf();
+    var area = el('textarea', { class: 'xs-copy-area', readonly: true, rows: '2', 'aria-label': '要貼給' + name + '的話' });
+    area.value = text;
+    var box = el('div', { class: 'xs-tn-copy', role: 'status' }, [
+      el('p', { class: 'xs-muted', text: '這台電腦不讓網頁自動複製。字已經選好了，按複製鍵，再貼到跟' + name + '的對話送出。' }), area,
+      el('button', { type: 'button', class: 'xs-btn xs-sm xs-ghost', onclick: function () { box.remove(); } }, ['好了'])
+    ]);
+    var body = card.querySelector('.xs-sheet-body'); body.insertBefore(box, body.firstChild); body.scrollTop = 0;
+    setTimeout(function () { area.focus(); area.select(); }, 30);
+  }
+
+  /* ════ 面板（調整器、複製）：鎖住後面的畫面、焦點不跑出去、Esc 關上 ════ */
+  function openSheet(card, o) {
+    closeSheet(true);
+    var last = document.activeElement;
+    var back = el('div', { class: 'xs-sheet-back', onclick: function () { requestClose(); } });
+    var wrap = el('div', { class: 'xs-sheet', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'sheet-title' }, [back, card]);
+    $('#layer').appendChild(wrap);
+    $('#app').inert = true; document.documentElement.classList.add('xs-locked');
+    $('#toast').classList.remove('show');
+    S.sheet = { wrap: wrap, card: card, last: last, onClose: o && o.onClose, guard: o && o.guard, kind: (o && o.kind) || '' };
+    document.addEventListener('keydown', trap, true);
+    if (!reduced()) wrap.classList.add('in');
+    return S.sheet;
+  }
+  function requestClose() {
+    var sh = S.sheet; if (!sh) return;
+    if (sh.guard && sh.guard()) return;
+    closeSheet();
+  }
+  function closeSheet(instant) {
+    var sh = S.sheet; if (!sh) return;
+    S.sheet = null;
+    document.removeEventListener('keydown', trap, true);
+    if (sh.onClose) sh.onClose();
+    $('#app').inert = false; document.documentElement.classList.remove('xs-locked');
+    var done = function () { sh.wrap.remove(); };
+    if (instant === true || reduced()) done();
+    else { sh.wrap.classList.remove('in'); sh.wrap.classList.add('out'); setTimeout(done, 220); }
+    if (sh.last && sh.last.focus && document.contains(sh.last)) sh.last.focus({ preventScroll: true });
+  }
+  function trap(e) {
+    if (!S.sheet) return;
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); requestClose(); return; }
+    if (e.key !== 'Tab' || !S.sheet) return;
+    var f = [].filter.call(S.sheet.card.querySelectorAll('button,[href],input,textarea,select,[tabindex]:not([tabindex="-1"])'), function (x) { return !x.disabled && x.offsetParent !== null; });
+    if (!f.length) return;
+    var a = f[0], z = f[f.length - 1];
+    if (!S.sheet.card.contains(document.activeElement)) { e.preventDefault(); a.focus(); return; }
+    if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); }
+    else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
+  }
+
+  /* ════ 你的小二：調整器 ════ */
+  function openTuner() {
+    if (!XC || !S.state) return;
+    if (S.sheet && S.sheet.kind === 'tuner') return;   // 已經開著（頂欄、經營室裡的入口連按也只開一次）
+    var name = nameOf();
+    var title = el('h2', { id: 'sheet-title' }, [el('span', { text: '換個樣子' }), el('i', { class: 'xs-dot', 'aria-hidden': 'true' })]);   // 名字只在名字格出現一次
+    var ask = el('div', { class: 'xs-tn-ask', id: 'tn-ask', hidden: true, role: 'alert' }, [
+      el('span', { text: '剛改的還沒存。' }),
+      el('button', { type: 'button', class: 'xs-btn xs-sm', onclick: function () { S.tunerSaved = null; closeSheet(); } }, ['不存了']),
+      el('button', { type: 'button', class: 'xs-btn xs-sm xs-ghost', onclick: function () { $('#tn-ask').hidden = true; } }, ['繼續改'])
+    ]);
+    var host = el('div', { class: 'xs-tn-host' }, [el('p', { class: 'xs-tn-wait', text: '正在讀' + name + '現在的樣子…' })]);
+    var card = el('div', { class: 'xs-sheet-card xs-lg' }, [
+      el('header', { class: 'xs-sheet-head' }, [
+        el('div', {}, [el('p', { class: 'xs-eyebrow', text: '你的小二' }), title]),
+        ask,
+        el('button', { type: 'button', class: 'xs-icon-btn', 'aria-label': '關上', html: ICON.close, onclick: requestClose })
+      ]),
+      el('div', { class: 'xs-sheet-body' }, [host])
+    ]);
+    openSheet(card, {
+      onClose: function () {
+        clearTimeout(S.closeT);
+        if (S.tuner) { S.tuner.destroy(); S.tuner = null; } S.tunerSaved = null;
+        if (S.justSaved) {
+          var nm = nameOf(); S.justSaved = null;
+          setTimeout(function () { if (S.avatar) S.avatar.expr('happy', 1.6); toast(nm + '換好了，記在你的經營資料夾。'); }, 240);
+        }
+      },
+      guard: function () { if (!dirty()) return false; var a = $('#tn-ask'); a.hidden = false; a.querySelector('button').focus(); return true; },
+      kind: 'tuner'
+    });
+    var go = function (init) {
+      if (!S.sheet || S.sheet.card !== card) return;
+      host.textContent = '';
+      S.tunerSaved = XC.normalize(init);
+      S.tuner = XC.customizer(host, init, {
+        onSave: saveCompanion, onCancel: function () { closeSheet(); },
+        onSay: sayInTuner,                                   // 下方三句：走外殼的複製；提示寫在調整器裡
+        onSaved: function () { closeSoon(card); }            // 存好了，看完「換好了」就自己關上
+      });
+      var first = host.querySelector('input,button'); if (first) first.focus({ preventScroll: true });
+    };
+    var mapComp = (S.state.map && S.state.map.companion) || {};
+    var safe = function (c) { if (SAFE) { c.skin = 'drawn'; c.photo = null; } return c; };
+    api('/api/companion').then(function (r) { go(safe(Object.assign({ skin: mapComp.skin, photo: mapComp.photo }, r.companion))); },
+      function () { go(safe(Object.assign({}, mapComp, { hue: S.look.hue, eyes: S.look.eyes }))); });
+  }
+  /* 存好了：面板裡先看到「換好了」、小二開心一下（約 1.6 秒），面板自己關上，經營室接著說存在哪。
+     這段時間裡他又改了東西，或面板已經關了、換成別的面板，就不關 */
+  function closeSoon(card) {
+    clearTimeout(S.closeT);
+    S.closeT = setTimeout(function () {
+      if (S.sheet && S.sheet.card === card && S.sheet.kind === 'tuner' && !dirty()) closeSheet();
+    }, 1600);
+  }
+  function dirty() {
+    if (!S.tuner || !S.tunerSaved) return false;
+    return sig(XC.normalize(S.tuner.value())) !== sig(S.tunerSaved);
+  }
+  function saveCompanion(payload) {
+    return api('/api/companion', payload).then(function (r) {
+      if (r.companion) S.tunerSaved = XC.normalize(r.companion);
+      if (r.state) accept({ state: r.state, pack: S.pack });
+      var name = nameOf();
+      if (S.avatar) S.avatar.expr('happy', 1.6);
+      S.justSaved = name;   // 面板裡已經有「換好了」；關上面板時頂欄的小二再笑一次、底下說存在哪
+      return r;
+    }, function (e) {
+      if (e.status === 409) {
+        var c = e.body && e.body.companion;
+        if (c) S.tunerSaved = XC.normalize(c);
+        refresh();
+        var x = new Error(e.message); x.status = 409; x.companion = c; throw x;
+      }
+      throw new Error(e.status === 0 ? '連不上經營室，剛剛的改動沒有存。' : e.message);
+    });
+  }
+  function refresh() { return api('/api/state').then(accept, function () { }); }
+
+  /* 經營室裡任何帶 data-xe-open 的東西，都打開調整器 */
+  document.addEventListener('click', function (e) {
+    var t = e.target && e.target.closest && e.target.closest('[data-xe-open]');
+    if (t && $('#app').contains(t)) { e.preventDefault(); openTuner(); }
+  });
+
+  /* ════ 回音 ════ */
+  function toast(text) {
+    var t = $('#toast');
+    t.textContent = text; t.classList.remove('show'); void t.offsetWidth; t.classList.add('show');
+    clearTimeout(S.toastT); S.toastT = setTimeout(function () { t.classList.remove('show'); }, 4200);
+  }
+
+  /* ── 開始 ── */
+  function boot() {
+    shell();
+    S.look = lookFrom(null);
+    paintAccent(S.look.hue); paintTopbar();
+    if (!XC || !V) { viewError(new Error('經營室的畫面沒有載入完整，重新整理一次。')); return; }
+    viewLoading();
+    start();
+  }
+  window.XiaoerShell = { openTuner: openTuner, state: function () { return S; } };   // 給經營室的入口與測試用
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot); else boot();
+})();

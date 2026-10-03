@@ -1,0 +1,135 @@
+/* 你的小二：調整器（companion.js 的 customizer）v2，10/2 17:00 簡化：大預覽、名字、本命色、六個樣子。
+   黑白＋一個強調色（他的本命色，--xe-hue 由程式填）；白色實體卡、兩層柔和陰影、大圓角；不發光、不漸層、不加有色邊條。
+   自成一套變數，不依賴外殼；深色跟著系統或 data-theme。存檔列放在面板最底，不浮在內容上。 */
+.xe-wrap{
+  --xe-surface:#FFFFFF;--xe-surface2:#F5F4F1;--xe-surface3:#ECEBE7;
+  --xe-ink:#0B0B0C;--xe-ink2:#57575A;--xe-ink3:#8E8E93;--xe-line:#E9E8E4;--xe-bad:#B3261E;
+  --xe-hue:#FF5A1F;
+  --xe-backdrop:var(--canvas,#EEEDEA);   /* 面板的底色：外殼有 --canvas 就跟著它（深色也跟著） */
+  --xe-shadow:0 0 0 1px rgba(11,11,12,.045),0 1px 2px rgba(11,11,12,.05),0 10px 30px -12px rgba(11,11,12,.14);
+  --xe-sans:"Geist",-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  --xe-mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --xe-ease:cubic-bezier(.2,.9,.25,1);
+  color:var(--xe-ink);font:15px/1.55 var(--xe-sans);-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums;
+  container-type:inline-size;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .xe-wrap{
+  --xe-surface:#17171A;--xe-surface2:#202024;--xe-surface3:#2A2A2E;
+  --xe-ink:#F2F2F0;--xe-ink2:#A5A5A8;--xe-ink3:#6E6E73;--xe-line:#2A2A2E;--xe-bad:#FF8A80;
+  --xe-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 30px -12px rgba(0,0,0,.6)}}
+:root[data-theme="dark"] .xe-wrap{
+  --xe-surface:#17171A;--xe-surface2:#202024;--xe-surface3:#2A2A2E;
+  --xe-ink:#F2F2F0;--xe-ink2:#A5A5A8;--xe-ink3:#6E6E73;--xe-line:#2A2A2E;--xe-bad:#FF8A80;
+  --xe-shadow:0 0 0 1px rgba(255,255,255,.06),0 10px 30px -12px rgba(0,0,0,.6)}
+.xe-wrap,.xe-wrap *,.xe-wrap *::before,.xe-wrap *::after{box-sizing:border-box}
+.xe-wrap :where(button,input){font:inherit;color:inherit;margin:0}
+.xe-wrap :where(h2,p){margin:0}
+.xe-wrap [hidden]{display:none!important}
+.xe-wrap :focus-visible{outline:2px solid var(--xe-ink);outline-offset:3px}
+.xe-canvas{display:block;touch-action:manipulation}
+
+.xe-tuner{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:stretch}
+.xe-card{background:var(--xe-surface);border-radius:22px;box-shadow:var(--xe-shadow);min-width:0}
+
+/* ── 左：大預覽 ── */
+.xe-pv{display:grid;grid-template-rows:1fr auto;justify-items:center;min-height:440px;padding:26px 28px 20px}   /* 只有小二和一行提示；名字只在右邊的名字格 */
+.xe-pv-stage{align-self:center;width:260px;height:260px;margin:18px 0}
+.xe-pv-hint{font:500 12px/1.4 var(--xe-mono);color:var(--xe-ink3);letter-spacing:.01em}
+
+/* ── 右：名字、本命色、樣子；存檔列在最底 ── */
+.xe-panel{display:flex;flex-direction:column}
+.xe-form{flex:1 0 auto;display:grid;align-content:start;gap:22px;padding:26px 28px 24px}
+.xe-grp{display:grid;gap:10px;min-width:0}
+.xe-lab{font-size:13px;font-weight:600;color:var(--xe-ink2)}
+
+.xe-field{display:grid;gap:6px;max-width:320px}
+.xe-inwrap{position:relative}
+.xe-input{width:100%;height:44px;padding:0 56px 0 14px;border:0;border-radius:12px;background:var(--xe-surface2);font-size:16px;font-weight:600;
+  box-shadow:inset 0 0 0 1px transparent;transition:box-shadow .16s var(--xe-ease),background-color .16s var(--xe-ease)}
+.xe-input:hover{background:var(--xe-surface3)}
+.xe-input:focus{outline:0;background:var(--xe-surface);box-shadow:inset 0 0 0 1.5px var(--xe-ink)}
+.xe-input[aria-invalid="true"]{box-shadow:inset 0 0 0 1.5px var(--xe-bad)}
+.xe-count{position:absolute;right:12px;top:50%;transform:translateY(-50%);font:500 11px/1 var(--xe-mono);color:var(--xe-ink3);pointer-events:none;opacity:0;transition:opacity .16s}
+.xe-inwrap:focus-within .xe-count,.xe-count.over{opacity:1}
+.xe-count.over{color:var(--xe-bad)}
+.xe-err{font-size:12.5px;line-height:1.5;color:var(--xe-bad)}
+.xe-err:empty{display:none}
+
+.xe-opts{display:flex;flex-wrap:wrap;gap:8px}
+.xe-swatches{gap:6px}
+.xe-sw{display:grid;place-items:center;width:36px;height:36px;padding:0;border:0;border-radius:50%;background:transparent;cursor:pointer;
+  box-shadow:inset 0 0 0 2px transparent;transition:box-shadow .18s var(--xe-ease),transform .12s var(--xe-ease)}
+.xe-sw-in{width:26px;height:26px;border-radius:50%;background:var(--sw)}
+.xe-sw[aria-checked="true"]{box-shadow:inset 0 0 0 2px var(--xe-ink)}
+
+.xe-looks{display:grid;grid-template-columns:repeat(var(--n,6),minmax(0,1fr));gap:8px;max-width:min(100%,calc(var(--n,6) * 73px))}   /* 交過照片的人多一格「照片」（v14） */
+.xe-looks-wrap{display:grid;gap:6px;min-width:0}
+.xe-look[aria-disabled="true"]{opacity:.42;cursor:not-allowed}
+.xe-look{display:grid;place-items:center;aspect-ratio:1;padding:6px;border:0;border-radius:16px;background:var(--xe-surface2);cursor:pointer;min-width:0;
+  box-shadow:inset 0 0 0 1.5px transparent;transition:background-color .18s var(--xe-ease),box-shadow .18s var(--xe-ease),transform .12s var(--xe-ease)}
+.xe-look:hover{background:var(--xe-surface3)}
+.xe-look[aria-checked="true"]{background:var(--xe-surface);box-shadow:inset 0 0 0 1.5px var(--xe-ink)}
+.xe-wrap .xe-mini{display:block;width:100%!important;height:auto!important;max-width:56px;aspect-ratio:1}
+
+.xe-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;padding:16px 28px 18px;border-top:1px solid var(--xe-line)}
+.xe-save{height:46px;padding:0 26px;border:0;border-radius:999px;background:var(--xe-ink);color:var(--xe-surface);font-size:15.5px;font-weight:600;letter-spacing:.02em;cursor:pointer;
+  transition:transform .12s var(--xe-ease),opacity .18s}
+.xe-save:disabled{opacity:.32;cursor:default;transform:none}
+.xe-link{padding:6px 0;border:0;background:none;font-size:14px;color:var(--xe-ink2);text-decoration:underline;text-decoration-color:var(--xe-line);text-decoration-thickness:1.5px;text-underline-offset:4px;cursor:pointer}
+.xe-link:hover{color:var(--xe-ink);text-decoration-color:currentColor}
+.xe-echo{flex:1 1 160px;min-width:0;font-size:13.5px;color:var(--xe-ink2);text-align:right}
+.xe-echo:empty{display:none}
+.xe-echo.ok{color:var(--xe-ink);font-weight:600}
+.xe-echo.ok::before{content:"";display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:var(--xe-hue);vertical-align:1px}
+.xe-echo.bad{color:var(--xe-bad)}
+.xe-echo.warn{color:var(--xe-ink)}
+.xe-sw:active,.xe-look:active,.xe-save:active,.xe-say-b:active{transform:scale(.97)}
+
+/* ── 下方一行：怎麼叫你、怎麼說話，直接跟它說 ── */
+.xe-say{display:grid;gap:10px;padding:18px 4px 2px}
+.xe-say-top{display:grid;min-width:0}
+.xe-say-top>*{grid-area:1 / 1;min-width:0}   /* 「複製好了」寫在說明那一行的位置：不多佔一行，面板不跳 */
+.xe-say-top.on .xe-say-lead{visibility:hidden}
+.xe-say-lead{font-size:14px;color:var(--xe-ink2)}
+.xe-say-row{display:flex;flex-wrap:wrap;gap:8px}
+.xe-say-b{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:6px 14px;border:0;border-radius:999px;background:var(--xe-surface);box-shadow:inset 0 0 0 1px var(--xe-line);
+  font-size:13.5px;color:var(--xe-ink);cursor:pointer;text-align:left;transition:background-color .18s var(--xe-ease),box-shadow .18s var(--xe-ease),transform .12s var(--xe-ease)}
+.xe-say-b::after{content:"複製";font:500 11px/1 var(--xe-mono);color:var(--xe-ink3);letter-spacing:.04em}
+.xe-say-b:hover{box-shadow:inset 0 0 0 1px var(--xe-ink3)}
+.xe-say-echo{font-size:14px;color:var(--xe-ink2);overflow-wrap:anywhere}
+.xe-say-echo:empty{display:none}
+.xe-say-echo.ok{color:var(--xe-ink);font-weight:600}
+.xe-say-echo.ok::before{content:"";display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:var(--xe-hue);vertical-align:1px}
+
+/* ── 窄（對話旁的側邊瀏覽器常是直的，寬 420–720）：預覽縮成一條、黏在面板頂端，往下選顏色、樣子時一直看得到表情 ──
+   黏住的那條外圍留一圈跟面板底色一樣的邊，底下捲過去的選項不會從圓角邊露出來 */
+@container (max-width:760px){
+  .xe-tuner{grid-template-columns:minmax(0,1fr);gap:12px}
+  .xe-pv{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:center;gap:14px;min-height:0;padding:8px 18px;border-radius:18px;
+    box-shadow:var(--xe-shadow),0 0 0 10px var(--xe-backdrop)}
+  .xe-pv-stage{flex:none;width:112px;height:112px;margin:0}
+  .xe-pv-hint{max-width:12em}
+  .xe-form{gap:18px;padding:20px 18px 18px}
+  .xe-field{max-width:none}
+  .xe-looks{gap:6px;max-width:none}
+  .xe-look{padding:4px;border-radius:12px}
+  .xe-bar{padding:14px 18px calc(14px + env(safe-area-inset-bottom))}
+  .xe-echo{flex-basis:100%;text-align:left;order:3}
+  .xe-say{padding:14px 2px 2px}
+}
+@container (max-width:420px){
+  .xe-pv-stage{width:96px;height:96px}
+  .xe-form{padding:18px 14px 16px}
+  .xe-swatches{gap:2px}
+}
+@supports not (container-type:inline-size){
+  @media (max-width:760px){
+    .xe-tuner{grid-template-columns:minmax(0,1fr)}
+    .xe-pv{position:sticky;top:0;z-index:2;min-height:0;padding:8px 18px;box-shadow:var(--xe-shadow),0 0 0 10px var(--xe-backdrop)}
+    .xe-pv-stage{width:112px;height:112px;margin:0}
+  }
+}
+@media (prefers-reduced-motion:reduce){
+  .xe-wrap *,.xe-wrap *::before,.xe-wrap *::after{transition:none!important}
+  .xe-sw:active,.xe-look:active,.xe-save:active,.xe-say-b:active{transform:none}
+}

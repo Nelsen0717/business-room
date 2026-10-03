@@ -193,6 +193,44 @@ def answer(state, data):
     return s
 
 
+DAILY_LOG = 20   # 紀錄帶最近 20 則：每天開門、打烊加換天時程式記的那一則，夠盤點算一週
+
+
+def _daily(m):
+    """開門、打烊、盤點要讀的整張地圖（v13）：原樣帶回（v13.1 的模組 mods、你的小二 companion 也在裡面），紀錄帶最近 20 則；
+    達成率由程式算好，不用助手心算。換天時程式會把前一天按過的結果記成一則（kind note、src data），盤點的一週合計照那幾則算。
+    交回去時，紀錄只交新的那一則、附近只交改了的那幾家；其他塊交一塊就是整塊換掉。
+    companion 一定在：沒交過就是預設的（小二、掌櫃的…，rev 0）；交回去要帶同一個 rev，畫面上剛改過的話以畫面為準。
+    小二不戴配件（10/2 17:00 拿掉 acc、art）：他在對話裡說想改怎麼叫他、怎麼說話，就照他說的改 call、tone、voice、hello。"""
+    m = m if isinstance(m, dict) else {}
+    out = {k: copy.deepcopy(v) for k, v in m.items() if k not in ('revision', 'updated', 'sources', 'log')}
+    from contextmap import COMPANION_DEFAULT, companion_stored, _sec, _shaped
+    # v14：存著的某一塊被直接改壞（例如 mods.items 寫成物件）：照原樣帶回去、標在 broken，小二照錯誤訊息整塊重交；其他塊照讀
+    broken = sorted(k for k, v in m.items() if k not in ('revision', 'updated') and v is not None and not _shaped(k, v))
+    if broken:
+        out['broken'] = broken
+    if 'log' in m:
+        out['log'] = dict(items=((_sec(m, 'log') or {}).get('items') or [])[:DAILY_LOG])
+    if m:
+        out['companion'] = {**COMPANION_DEFAULT, **companion_stored(m.get('companion'))}   # 舊格式的配件不帶回去
+    if isinstance(m.get('sources'), dict) and m['sources']:
+        out['source_keys'] = sorted(map(str, m['sources']))
+    goals = out.get('goals') if isinstance(out.get('goals'), dict) else {}
+    for g in goals.get('items', []) if isinstance(goals.get('items'), list) else []:
+        try:
+            span = g['target'] - g['base']
+            g['rate'] = round((g['now'] - g['base']) / span, 4) if span else None
+        except (KeyError, TypeError, ZeroDivisionError, OverflowError):
+            pass   # 這一個目標的數字壞了：不算達成率，其他照算
+    from shape import _items
+    if any(isinstance(x, dict) and x.get('view') for x in _items(m)):
+        # v14：模組畫面算好的數（還能用幾天、夠不夠、驗算對不對得上）與一行提醒，由程式算，小二照讀、不自己心算
+        from shape import views, alerts
+        out['views'] = views(m)
+        out['alerts'] = alerts(m, out['views'])
+    return out
+
+
 def resume(s):
     """不呼叫模型、不改資料；把原助手需要接續的最小脈絡帶回。"""
     o = s.get('onboarding', {})
@@ -200,9 +238,14 @@ def resume(s):
     results = sorted([x for x in s['actions'] if x['status'] == 'done'], key=lambda x:x.get('updated', ''), reverse=True)
     return dict(revision=s['revision'], ready=s['setup']['complete'], business=s['business'],
         conversation=o.get('payload', {}).get('conversation'),
-        first_task=active[0] if active else None, recent_results=results[:3],
+        first_task=None if (s.get('map') or {}).get('today') else (active[0] if active else None), recent_results=results[:3],
         next_question=o.get('question'), added_context=o.get('answers', []),
         observations=s.get('observations',[]),
         map=dict(sections=sorted(k for k in (s.get('map') or {}) if k not in {'revision','updated','sources'}),revision=(s.get('map') or {}).get('revision',0)),
+        daily=_daily(s.get('map') or {}),
         pending_discussions=[x for x in s.get('companion', {}).get('turns', []) if x['status'] == 'queued'],
-        instruction='先讀已有原話與結果，不重問。若有未完成的工作先接續；若已有結果，先問是否回看，再準備下一個有依據的做法。不要自行宣告背景運作或對外發送。')
+        instruction=('排程或他叫你「開門」「打烊」「盤點」時，照 .business-room/例行.md 做，讀 daily（今天、想問你、目標、在跑的模組、紀錄）；'
+                     '用 daily.companion 的名字、怎麼叫他、語氣說話。'
+                     if (s.get('map') or {}).get('today') else
+                     '先讀已有原話與結果，不重問。若有未完成的工作先接續；若已有結果，先問是否回看，再準備下一個有依據的做法。')
+                    + '不要自行宣告背景運作；不替他送出任何訊息。')

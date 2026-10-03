@@ -6,6 +6,6 @@
 |---|---|---|
 | `Geist-var.woff2` | Geist（Vercel），拉丁字母子集 | SIL Open Font License 1.1 |
 | `GeistMono-var.woff2` | Geist Mono（Vercel），拉丁字母子集 | SIL Open Font License 1.1 |
-| `wordmark.woff2` | Noto Serif TC（Google），只含「經營室」三個字，給字標用 | SIL Open Font License 1.1 |
+| `wordmark.woff2` | Noto Serif TC Bold（Google），只含「小二經營室」五個字，給字標用 | SIL Open Font License 1.1 |
 
 授權全文：https://openfontlicense.org 。中文字沒有內嵌，用各系統自己的字（蘋方、Noto Sans TC、微軟正黑）。
